@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "crowdsignal-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=4.2,<5.0",
+    "djangorestframework>=3.14",
+    "channels>=4.0",
+    "channels-redis>=4.1",
+    "celery[redis]>=5.3",
+    "django-celery-beat>=2.5",
+    "psycopg2-binary>=2.9",
+    "transformers>=4.35",
+    "torch>=2.1",
+    "alpaca-py>=0.13",
+    "feedparser>=6.0",
+    "requests>=2.31",
+    "python-decouple>=3.8",
+    "daphne>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-django>=4.7",
+    "pytest-asyncio>=0.21",
+    "black>=23",
+    "ruff>=0.1",
+]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
