@@ -1,0 +1,24 @@
+Metadata-Version: 2.4
+Name: crowdsignal-backend
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: django<5.0,>=4.2
+Requires-Dist: djangorestframework>=3.14
+Requires-Dist: channels>=4.0
+Requires-Dist: channels-redis>=4.1
+Requires-Dist: celery[redis]>=5.3
+Requires-Dist: django-celery-beat>=2.5
+Requires-Dist: psycopg2-binary>=2.9
+Requires-Dist: transformers>=4.35
+Requires-Dist: torch>=2.1
+Requires-Dist: alpaca-py>=0.13
+Requires-Dist: feedparser>=6.0
+Requires-Dist: requests>=2.31
+Requires-Dist: python-decouple>=3.8
+Requires-Dist: daphne>=4.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-django>=4.7; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21; extra == "dev"
+Requires-Dist: black>=23; extra == "dev"
+Requires-Dist: ruff>=0.1; extra == "dev"
