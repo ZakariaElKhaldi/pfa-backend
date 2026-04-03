@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from .models import SocialPost
 
 
@@ -9,6 +10,8 @@ class SocialPostSerializer(serializers.ModelSerializer):
             "id",
             "source",
             "external_id",
+            "title",
+            "url",
             "content",
             "sentiment_score",
             "sentiment_label",

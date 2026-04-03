@@ -1,8 +1,9 @@
 import pytest
 from django.utils import timezone
-from apps.tickers.models import Ticker
+
 from apps.market.models import PriceSnapshot
-from apps.signals.models import SignalSnapshot, AlertFlag
+from apps.signals.models import AlertFlag, SignalSnapshot
+from apps.tickers.models import Ticker
 
 
 @pytest.mark.django_db

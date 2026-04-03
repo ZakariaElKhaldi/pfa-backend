@@ -15,15 +15,18 @@ class SocialPost(models.Model):
         (LABEL_NEUTRAL, "Neutral"),
     ]
 
-    ticker = models.ForeignKey(
-        "tickers.Ticker", on_delete=models.CASCADE, related_name="posts"
-    )
+    ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE, related_name="posts")
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
     external_id = models.CharField(max_length=200)
+    title = models.CharField(max_length=500, blank=True, null=True)
+    url = models.URLField(max_length=1000, blank=True, null=True)
     content = models.TextField()
     cleaned_text = models.TextField(blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
     sentiment_label = models.CharField(max_length=20, choices=LABEL_CHOICES, blank=True)
+    positive_prob = models.FloatField(null=True, blank=True)
+    negative_prob = models.FloatField(null=True, blank=True)
+    neutral_prob = models.FloatField(null=True, blank=True)
     posted_at = models.DateTimeField()
     fetched_at = models.DateTimeField(auto_now_add=True)
 

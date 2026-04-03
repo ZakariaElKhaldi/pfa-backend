@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
+from datetime import timezone as dt_timezone
 
 import requests
 
@@ -36,8 +37,6 @@ class StockTwitsFetcher(BaseFetcher):
         if not date_str:
             return datetime.now(tz=dt_timezone.utc)
         try:
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ").replace(
-                tzinfo=dt_timezone.utc
-            )
+            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc)
         except Exception:
             return datetime.now(tz=dt_timezone.utc)

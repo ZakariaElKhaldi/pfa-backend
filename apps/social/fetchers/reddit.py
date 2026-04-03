@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from email.utils import parsedate
 
 import feedparser
@@ -24,7 +25,9 @@ class RedditFetcher(BaseFetcher):
                         {
                             "source": "reddit",
                             "external_id": entry.get("id", ""),
-                            "content": f"{entry.get('title', '')} {entry.get('summary', '')}".strip(),
+                            "title": entry.get("title", ""),
+                            "url": entry.get("link", ""),
+                            "content": entry.get("summary", entry.get("content", [{}])[0].get("value", "")),
                             "posted_at": self._parse_date(entry.get("published")),
                         }
                     )

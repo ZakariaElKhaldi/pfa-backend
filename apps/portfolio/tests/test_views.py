@@ -1,10 +1,12 @@
-import pytest
 from decimal import Decimal
+
+import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
-from apps.tickers.models import Ticker
+
 from apps.market.models import PriceSnapshot
 from apps.portfolio.models import Portfolio, Position
-from django.utils import timezone
+from apps.tickers.models import Ticker
 
 
 @pytest.fixture

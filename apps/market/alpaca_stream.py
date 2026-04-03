@@ -15,12 +15,13 @@ class AlpacaStreamManager:
 
     def get_symbols(self) -> list[str]:
         from apps.tickers.models import Ticker
+
         return list(Ticker.objects.values_list("symbol", flat=True))
 
     def handle_bar(self, bar) -> None:
         """Called by Alpaca SDK for each price bar received."""
-        from apps.tickers.models import Ticker
         from apps.market.models import PriceSnapshot
+        from apps.tickers.models import Ticker
 
         try:
             ticker = Ticker.objects.get(symbol=bar.symbol)
@@ -31,6 +32,9 @@ class AlpacaStreamManager:
             PriceSnapshot.objects.create(
                 ticker=ticker,
                 price=bar.close,
+                open_price=bar.open,
+                high_price=bar.high,
+                low_price=bar.low,
                 volume=bar.volume,
                 timestamp=bar.timestamp,
             )
@@ -38,6 +42,9 @@ class AlpacaStreamManager:
                 bar.symbol,
                 {
                     "type": "price",
+                    "open": str(bar.open),
+                    "high": str(bar.high),
+                    "low": str(bar.low),
                     "price": str(bar.close),
                     "volume": bar.volume,
                     "timestamp": bar.timestamp.isoformat(),

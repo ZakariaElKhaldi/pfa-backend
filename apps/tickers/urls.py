@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import TickerListCreateView, TickerDetailView
+
+from .views import TickerDetailView, TickerListCreateView
 
 urlpatterns = [
     path("tickers/", TickerListCreateView.as_view(), name="ticker-list"),

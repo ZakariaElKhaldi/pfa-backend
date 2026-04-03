@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import PortfolioView, BuyView, SellView
+
+from .views import BuyView, PortfolioView, SellView
 
 urlpatterns = [
     path("portfolio/", PortfolioView.as_view(), name="portfolio"),

@@ -11,14 +11,24 @@ class SignalSnapshot(models.Model):
         (SIGNAL_HOLD, "HOLD"),
     ]
 
-    ticker = models.ForeignKey(
-        "tickers.Ticker", on_delete=models.CASCADE, related_name="signals"
-    )
+    ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE, related_name="signals")
     sentiment = models.FloatField()
     momentum = models.FloatField()
     consistency = models.FloatField()
     signal = models.CharField(max_length=4, choices=SIGNAL_CHOICES)
     post_count = models.IntegerField()
+    # Phase 2: Advanced aggregation metrics (Papers 4 & 5)
+    bullish_ratio = models.FloatField(null=True, blank=True)
+    normalized_index = models.FloatField(null=True, blank=True)
+    time_decay_score = models.FloatField(null=True, blank=True)
+    source_weighted_score = models.FloatField(null=True, blank=True)
+    positive_count = models.IntegerField(default=0)
+    negative_count = models.IntegerField(default=0)
+    neutral_count = models.IntegerField(default=0)
+    # Phase 5: ML prediction metadata
+    prediction_method = models.CharField(max_length=20, default="rule_based")
+    prediction_confidence = models.FloatField(null=True, blank=True)
+    feature_importances = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -36,9 +46,7 @@ class AlertFlag(models.Model):
         (TYPE_EXTREME, "Extreme Sentiment"),
     ]
 
-    ticker = models.ForeignKey(
-        "tickers.Ticker", on_delete=models.CASCADE, related_name="alerts"
-    )
+    ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE, related_name="alerts")
     type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     sentiment = models.FloatField()
     momentum = models.FloatField()

@@ -1,7 +1,7 @@
 import pytest
-from channels.testing import WebsocketCommunicator
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from channels.testing import WebsocketCommunicator
+
 from config.asgi import application
 
 

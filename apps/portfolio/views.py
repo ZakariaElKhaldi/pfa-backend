@@ -1,9 +1,12 @@
 from decimal import Decimal
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.tickers.models import Ticker
+
 from apps.market.models import PriceSnapshot
+from apps.tickers.models import Ticker
+
 from .models import Portfolio, Position, Trade
 from .serializers import PortfolioSerializer
 
@@ -29,9 +32,18 @@ class PortfolioView(APIView):
 class BuyView(APIView):
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
-        quantity = int(request.data.get("quantity", 0))
+        try:
+            quantity = int(request.data.get("quantity", 0))
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "quantity must be a valid integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if quantity <= 0:
-            return Response({"detail": "quantity must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "quantity must be positive"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             ticker = Ticker.objects.get(symbol=symbol)
@@ -58,15 +70,21 @@ class BuyView(APIView):
         # Recalculate avg price
         total_shares = position.quantity + quantity
         position.avg_price = (
-            (position.avg_price * position.quantity + price * quantity) / total_shares
-        )
+            position.avg_price * position.quantity + price * quantity
+        ) / total_shares
         position.quantity = total_shares
         position.save()
 
         portfolio.cash -= total_cost
         portfolio.save(update_fields=["cash"])
 
-        Trade.objects.create(portfolio=portfolio, ticker=ticker, side=Trade.SIDE_BUY, quantity=quantity, price=price)
+        Trade.objects.create(
+            portfolio=portfolio,
+            ticker=ticker,
+            side=Trade.SIDE_BUY,
+            quantity=quantity,
+            price=price,
+        )
 
         return Response(PortfolioSerializer(portfolio).data)
 
@@ -74,9 +92,18 @@ class BuyView(APIView):
 class SellView(APIView):
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
-        quantity = int(request.data.get("quantity", 0))
+        try:
+            quantity = int(request.data.get("quantity", 0))
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "quantity must be a valid integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if quantity <= 0:
-            return Response({"detail": "quantity must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "quantity must be positive"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             ticker = Ticker.objects.get(symbol=symbol)
@@ -88,7 +115,10 @@ class SellView(APIView):
         try:
             position = Position.objects.get(portfolio=portfolio, ticker=ticker)
         except Position.DoesNotExist:
-            return Response({"detail": "No position in this ticker"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "No position in this ticker"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if position.quantity < quantity:
             return Response(
@@ -110,6 +140,12 @@ class SellView(APIView):
         portfolio.cash += price * quantity
         portfolio.save(update_fields=["cash"])
 
-        Trade.objects.create(portfolio=portfolio, ticker=ticker, side=Trade.SIDE_SELL, quantity=quantity, price=price)
+        Trade.objects.create(
+            portfolio=portfolio,
+            ticker=ticker,
+            side=Trade.SIDE_SELL,
+            quantity=quantity,
+            price=price,
+        )
 
         return Response(PortfolioSerializer(portfolio).data)

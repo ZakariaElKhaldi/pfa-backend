@@ -1,12 +1,14 @@
-import pytest
-from decimal import Decimal
-from django.utils import timezone
 from datetime import timedelta
-from apps.tickers.models import Ticker
-from apps.social.models import SocialPost
+from decimal import Decimal
+
+import pytest
+from django.utils import timezone
+
 from apps.market.models import PriceSnapshot
 from apps.signals.engine import compute_signal
 from apps.signals.models import SignalSnapshot
+from apps.social.models import SocialPost
+from apps.tickers.models import Ticker
 
 
 @pytest.fixture
@@ -32,8 +34,18 @@ def make_posts(ticker, count, score):
 
 def make_prices(ticker, start_price, end_price):
     now = timezone.now()
-    PriceSnapshot.objects.create(ticker=ticker, price=Decimal(str(start_price)), volume=0, timestamp=now - timedelta(minutes=25))
-    PriceSnapshot.objects.create(ticker=ticker, price=Decimal(str(end_price)), volume=0, timestamp=now)
+    PriceSnapshot.objects.create(
+        ticker=ticker,
+        price=Decimal(str(start_price)),
+        volume=0,
+        timestamp=now - timedelta(minutes=25),
+    )
+    PriceSnapshot.objects.create(
+        ticker=ticker,
+        price=Decimal(str(end_price)),
+        volume=0,
+        timestamp=now,
+    )
 
 
 @pytest.mark.django_db
@@ -84,3 +96,41 @@ def test_post_count_in_result(ticker):
     make_prices(ticker, start_price=100, end_price=100)
     result = compute_signal("AAPL")
     assert result["post_count"] == 7
+
+
+# --- Phase 2: Aggregation metrics in engine ---
+
+
+@pytest.mark.django_db
+def test_compute_signal_returns_aggregation_metrics(ticker):
+    make_posts(ticker, count=10, score=0.7)
+    make_prices(ticker, start_price=100, end_price=107)
+    result = compute_signal("AAPL")
+    assert "bullish_ratio" in result
+    assert "normalized_index" in result
+    assert "time_decay_score" in result
+    assert "source_weighted_score" in result
+    assert "positive_count" in result
+    assert "negative_count" in result
+    assert "neutral_count" in result
+
+
+@pytest.mark.django_db
+def test_compute_signal_uses_time_decay_for_sentiment(ticker):
+    """The primary sentiment should come from time_decay_score, not simple avg."""
+    make_posts(ticker, count=10, score=0.7)
+    make_prices(ticker, start_price=100, end_price=107)
+    result = compute_signal("AAPL")
+    # time_decay_score should be present and close to the post scores
+    assert result["time_decay_score"] is not None
+    assert abs(result["time_decay_score"] - 0.7) < 0.2
+
+
+@pytest.mark.django_db
+def test_compute_signal_counts_labels(ticker):
+    """All posts with score > 0 are bullish, so positive_count should match."""
+    make_posts(ticker, count=5, score=0.6)
+    make_prices(ticker, start_price=100, end_price=100)
+    result = compute_signal("AAPL")
+    assert result["positive_count"] == 5
+    assert result["negative_count"] == 0

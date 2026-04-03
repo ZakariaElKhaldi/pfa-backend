@@ -1,11 +1,12 @@
 import logging
+
 from transformers import pipeline
 
 logger = logging.getLogger(__name__)
 
 
 class SentimentScorer:
-    """Singleton FinBERT scorer. Call score() or score_batch()."""
+    """Singleton FinBERT scorer. Call score(), score_detail(), or score_batch()."""
 
     _instance = None
 
@@ -25,24 +26,56 @@ class SentimentScorer:
             )
             logger.info("FinBERT model loaded.")
 
-    def score(self, text: str) -> tuple[float, str]:
+    def _parse_result(self, result: list[dict]) -> dict:
+        """Parse a single FinBERT output into a detail dict."""
+        scores = {r["label"].lower(): r["score"] for r in result}
+        positive_prob = scores.get("positive", 0.0)
+        negative_prob = scores.get("negative", 0.0)
+        neutral_prob = scores.get("neutral", 0.0)
+        composite_score = positive_prob - negative_prob
+
+        if composite_score > 0.1:
+            label = "bullish"
+        elif composite_score < -0.1:
+            label = "bearish"
+        else:
+            label = "neutral"
+
+        return {
+            "positive_prob": positive_prob,
+            "negative_prob": negative_prob,
+            "neutral_prob": neutral_prob,
+            "composite_score": composite_score,
+            "label": label,
+        }
+
+    def score_detail(self, text: str) -> dict:
         """
-        Returns (score, label).
-        score ∈ [-1, 1] = positive_prob - negative_prob
-        label ∈ {bullish, bearish, neutral}
+        Returns dict with all probabilities and classification:
+        {positive_prob, negative_prob, neutral_prob, composite_score, label}
         """
         self._load()
         truncated = text[:512]
         results = self._pipeline(truncated)[0]
-        scores = {r["label"].lower(): r["score"] for r in results}
-        score = scores.get("positive", 0.0) - scores.get("negative", 0.0)
-        if score > 0.1:
-            label = "bullish"
-        elif score < -0.1:
-            label = "bearish"
-        else:
-            label = "neutral"
-        return score, label
+        return self._parse_result(results)
 
-    def score_batch(self, texts: list[str]) -> list[tuple[float, str]]:
-        return [self.score(t) for t in texts]
+    def score(self, text: str) -> tuple[float, str]:
+        """
+        Returns (score, label).
+        score in [-1, 1] = positive_prob - negative_prob
+        label in {bullish, bearish, neutral}
+        """
+        detail = self.score_detail(text)
+        return detail["composite_score"], detail["label"]
+
+    def score_batch(self, texts: list[str]) -> list[dict]:
+        """
+        Batch score texts using a single pipeline call.
+        Returns list of detail dicts (same format as score_detail).
+        """
+        if not texts:
+            return []
+        self._load()
+        truncated = [t[:512] for t in texts]
+        all_results = self._pipeline(truncated)
+        return [self._parse_result(result) for result in all_results]

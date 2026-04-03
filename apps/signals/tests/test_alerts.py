@@ -1,7 +1,8 @@
 import pytest
-from apps.tickers.models import Ticker
-from apps.signals.models import AlertFlag
+
 from apps.signals.alerts import check_and_create_alert
+from apps.signals.models import AlertFlag
+from apps.tickers.models import Ticker
 
 
 @pytest.fixture

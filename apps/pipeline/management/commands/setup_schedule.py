@@ -5,7 +5,7 @@ class Command(BaseCommand):
     help = "Create the Celery Beat schedule for the ingestion pipeline (runs every 5 minutes)"
 
     def handle(self, *args, **options):
-        from django_celery_beat.models import PeriodicTask, IntervalSchedule
+        from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
         schedule, _ = IntervalSchedule.objects.get_or_create(
             every=5,

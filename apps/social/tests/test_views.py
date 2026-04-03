@@ -1,8 +1,9 @@
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
-from apps.tickers.models import Ticker
+
 from apps.social.models import SocialPost
+from apps.tickers.models import Ticker
 
 
 @pytest.fixture
@@ -42,6 +43,7 @@ def test_posts_deduplicated_by_source_and_external_id(ticker):
         posted_at=timezone.now(),
     )
     from django.db import IntegrityError
+
     with pytest.raises(IntegrityError):
         SocialPost.objects.create(
             ticker=ticker,

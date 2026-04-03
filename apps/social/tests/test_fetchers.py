@@ -1,8 +1,7 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from apps.social.fetchers.reddit import RedditFetcher
 from apps.social.fetchers.stocktwits import StockTwitsFetcher
-
 
 FAKE_FEED = MagicMock()
 FAKE_FEED.entries = [
