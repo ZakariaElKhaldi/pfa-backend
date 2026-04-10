@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AlertFlag, SignalSnapshot
+from .models import AlertFlag, SignalAccuracy, SignalSnapshot
 
 
 class SignalSnapshotSerializer(serializers.ModelSerializer):
@@ -40,4 +40,16 @@ class AlertFlagSerializer(serializers.ModelSerializer):
             "consistency",
             "created_at",
             "resolved",
+        ]
+
+
+class SignalAccuracySerializer(serializers.ModelSerializer):
+    ticker_symbol = serializers.CharField(source="signal_snapshot.ticker.symbol", read_only=True)
+
+    class Meta:
+        model = SignalAccuracy
+        fields = [
+            "id", "ticker_symbol", "predicted", "actual_direction",
+            "price_at_signal", "price_after_1h", "price_after_24h",
+            "accuracy_1h", "accuracy_24h", "evaluated_at",
         ]

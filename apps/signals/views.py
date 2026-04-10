@@ -5,8 +5,8 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin
 
-from .models import AlertFlag, SignalSnapshot
-from .serializers import AlertFlagSerializer, SignalSnapshotSerializer
+from .models import AlertFlag, SignalAccuracy, SignalSnapshot
+from .serializers import AlertFlagSerializer, SignalAccuracySerializer, SignalSnapshotSerializer
 
 
 class TickerSignalView(APIView):
@@ -49,6 +49,15 @@ class TickerSignalExplainView(APIView):
                 "total": snap.post_count,
             },
         })
+
+
+class TickerSignalAccuracyView(generics.ListAPIView):
+    serializer_class = SignalAccuracySerializer
+
+    def get_queryset(self):
+        return SignalAccuracy.objects.filter(
+            signal_snapshot__ticker__symbol=self.kwargs["symbol"]
+        ).order_by("-evaluated_at")[:100]
 
 
 class AlertListView(generics.ListAPIView):

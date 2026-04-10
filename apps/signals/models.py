@@ -59,3 +59,20 @@ class AlertFlag(models.Model):
 
     def __str__(self):
         return f"{self.ticker.symbol}:{self.type}"
+
+
+class SignalAccuracy(models.Model):
+    signal_snapshot = models.OneToOneField(
+        SignalSnapshot, on_delete=models.CASCADE, related_name="accuracy"
+    )
+    predicted = models.CharField(max_length=4)
+    actual_direction = models.CharField(max_length=4)  # UP, DOWN, FLAT
+    price_at_signal = models.DecimalField(max_digits=12, decimal_places=4)
+    price_after_1h = models.DecimalField(max_digits=12, decimal_places=4, null=True)
+    price_after_24h = models.DecimalField(max_digits=12, decimal_places=4, null=True)
+    accuracy_1h = models.BooleanField(null=True)
+    accuracy_24h = models.BooleanField(null=True)
+    evaluated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.signal_snapshot.ticker.symbol}: {self.predicted} → {self.actual_direction}"
