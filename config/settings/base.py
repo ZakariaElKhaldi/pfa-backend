@@ -174,3 +174,12 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalSocialAdapter"
+
+# ---------- Rate Limiting ----------
+RATELIMIT_USE_CACHE = "default"
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": config("CELERY_BROKER_URL", default="redis://redis:6379/0"),
+    }
+}

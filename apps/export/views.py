@@ -5,6 +5,8 @@ from datetime import timedelta
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.negotiation import BaseContentNegotiation
 from rest_framework.renderers import JSONRenderer
@@ -33,6 +35,7 @@ class IgnoreClientContentNegotiation(BaseContentNegotiation):
         return (renderers[0], renderers[0].media_type)
 
 
+@method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
 class TickerExportView(APIView):
     content_negotiation_class = IgnoreClientContentNegotiation
     renderer_classes = [JSONRenderer]
