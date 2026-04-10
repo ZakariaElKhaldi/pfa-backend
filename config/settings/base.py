@@ -26,7 +26,10 @@ INSTALLED_APPS = [
     "apps.market",
     "apps.portfolio",
     "apps.pipeline",
+    "apps.accounts",
 ]
+
+AUTH_USER_MODEL = "accounts.CustomUser"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
