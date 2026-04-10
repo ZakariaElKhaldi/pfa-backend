@@ -5,8 +5,13 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin
 
-from .models import AlertFlag, SignalAccuracy, SignalSnapshot
-from .serializers import AlertFlagSerializer, SignalAccuracySerializer, SignalSnapshotSerializer
+from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
+from .serializers import (
+    AlertFlagSerializer,
+    DecisionLogSerializer,
+    SignalAccuracySerializer,
+    SignalSnapshotSerializer,
+)
 
 
 class TickerSignalView(APIView):
@@ -78,3 +83,21 @@ class AlertResolveView(APIView):
         alert.resolved = True
         alert.save(update_fields=["resolved"])
         return Response(AlertFlagSerializer(alert).data)
+
+
+class DecisionLogListView(generics.ListAPIView):
+    serializer_class = DecisionLogSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get_queryset(self):
+        qs = DecisionLog.objects.all()
+        symbol = self.request.query_params.get("ticker")
+        if symbol:
+            qs = qs.filter(ticker__symbol=symbol.upper())
+        return qs
+
+
+class DecisionLogDetailView(generics.RetrieveAPIView):
+    serializer_class = DecisionLogSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    queryset = DecisionLog.objects.all()

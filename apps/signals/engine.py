@@ -8,6 +8,10 @@ from apps.signals.models import SignalSnapshot
 
 logger = logging.getLogger(__name__)
 
+BUY_SENTIMENT_THRESHOLD = 0.5
+SELL_SENTIMENT_THRESHOLD = -0.3
+CONSISTENCY_THRESHOLD = 0.5
+
 
 def compute_signal(ticker_symbol: str) -> dict | None:
     """
@@ -64,14 +68,14 @@ def compute_signal(ticker_symbol: str) -> dict | None:
 
     consistency = 1.0 - abs(sentiment - momentum) / 2.0
 
-    if sentiment > 0.5 and consistency > 0.5:
+    if sentiment > BUY_SENTIMENT_THRESHOLD and consistency > CONSISTENCY_THRESHOLD:
         signal = SignalSnapshot.SIGNAL_BUY
-    elif sentiment < -0.3 and consistency > 0.5:
+    elif sentiment < SELL_SENTIMENT_THRESHOLD and consistency > CONSISTENCY_THRESHOLD:
         signal = SignalSnapshot.SIGNAL_SELL
     else:
         signal = SignalSnapshot.SIGNAL_HOLD
 
-    return {
+    result = {
         "ticker": ticker,
         "sentiment": sentiment,
         "momentum": momentum,
@@ -87,3 +91,28 @@ def compute_signal(ticker_symbol: str) -> dict | None:
         "negative_count": agg["negative_count"],
         "neutral_count": agg["neutral_count"],
     }
+
+    # Decision logging
+    decision_data = {
+        "input_summary": {
+            "post_count": post_count,
+            "cutoff": cutoff.isoformat(),
+            "sources": sorted({p["source"] for p in post_dicts}),
+        },
+        "scoring_detail": {
+            "aggregation": agg,
+            "sentiment": sentiment,
+            "momentum": momentum,
+            "consistency": consistency,
+        },
+        "engine_output": {
+            "signal": signal,
+            "thresholds": {
+                "buy_sentiment": BUY_SENTIMENT_THRESHOLD,
+                "sell_sentiment": SELL_SENTIMENT_THRESHOLD,
+                "consistency": CONSISTENCY_THRESHOLD,
+            },
+        },
+    }
+    result["_decision_data"] = decision_data
+    return result

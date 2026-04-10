@@ -76,3 +76,24 @@ class SignalAccuracy(models.Model):
 
     def __str__(self):
         return f"{self.signal_snapshot.ticker.symbol}: {self.predicted} → {self.actual_direction}"
+
+
+class DecisionLog(models.Model):
+    signal_snapshot = models.OneToOneField(
+        SignalSnapshot, on_delete=models.CASCADE, related_name="decision_log"
+    )
+    ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    input_summary = models.JSONField()
+    scoring_detail = models.JSONField()
+    engine_output = models.JSONField()
+    alerts_triggered = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["ticker", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"Decision:{self.ticker.symbol}@{self.timestamp}"

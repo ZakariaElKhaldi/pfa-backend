@@ -25,7 +25,7 @@ def run_pipeline_for_ticker(symbol: str) -> None:
     from apps.market.utils import push_market_update
     from apps.signals.alerts import check_and_create_alert
     from apps.signals.engine import compute_signal
-    from apps.signals.models import SignalSnapshot
+    from apps.signals.models import DecisionLog, SignalSnapshot
     from apps.social.models import SocialPost
     from apps.tickers.models import Ticker
 
@@ -110,6 +110,17 @@ def run_pipeline_for_ticker(symbol: str) -> None:
         negative_count=result.get("negative_count", 0),
         neutral_count=result.get("neutral_count", 0),
     )
+
+    # Decision logging
+    decision_data = result.get("_decision_data", {})
+    if decision_data:
+        DecisionLog.objects.create(
+            signal_snapshot=snapshot,
+            ticker=ticker,
+            input_summary=decision_data.get("input_summary", {}),
+            scoring_detail=decision_data.get("scoring_detail", {}),
+            engine_output=decision_data.get("engine_output", {}),
+        )
 
     # Step 6: Alerts
     check_and_create_alert(ticker, result)
