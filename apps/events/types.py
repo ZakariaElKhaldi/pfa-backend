@@ -1,0 +1,5 @@
+SIGNAL_GENERATED = "signal_generated"
+ACCURACY_EVALUATED = "accuracy_evaluated"
+ALERT_CREATED = "alert_created"
+PRICE_UPDATED = "price_updated"
+PIPELINE_COMPLETED = "pipeline_completed"

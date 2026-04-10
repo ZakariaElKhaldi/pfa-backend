@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.market",
     "apps.portfolio",
     "apps.pipeline",
+    "apps.events",
     "apps.export",
     "corsheaders",
     "django.contrib.sites",
