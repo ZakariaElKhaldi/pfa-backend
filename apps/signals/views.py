@@ -1,6 +1,9 @@
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.accounts.permissions import IsAdmin
 
 from .models import AlertFlag, SignalSnapshot
 from .serializers import AlertFlagSerializer, SignalSnapshotSerializer
@@ -56,6 +59,8 @@ class AlertListView(generics.ListAPIView):
 
 
 class AlertResolveView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
     def patch(self, request, pk):
         try:
             alert = AlertFlag.objects.get(pk=pk)
