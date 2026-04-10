@@ -115,4 +115,17 @@ def compute_signal(ticker_symbol: str) -> dict | None:
         },
     }
     result["_decision_data"] = decision_data
+
+    from apps.events.bus import publish
+    from apps.events.types import SIGNAL_GENERATED
+
+    publish(SIGNAL_GENERATED, {
+        "ticker": ticker_symbol,
+        "signal": signal,
+        "sentiment": sentiment,
+        "momentum": momentum,
+        "consistency": consistency,
+        "post_count": post_count,
+    })
+
     return result

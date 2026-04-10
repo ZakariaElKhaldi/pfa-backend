@@ -151,3 +151,12 @@ def run_pipeline_for_ticker(symbol: str) -> None:
         },
     )
     logger.info("Pipeline complete for %s: %s", symbol, snapshot.signal)
+
+    from apps.events.bus import publish
+    from apps.events.types import PIPELINE_COMPLETED
+
+    publish(PIPELINE_COMPLETED, {
+        "ticker": symbol,
+        "signal": snapshot.signal,
+        "post_count": snapshot.post_count,
+    })

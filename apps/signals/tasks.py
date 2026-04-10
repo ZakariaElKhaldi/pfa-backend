@@ -82,3 +82,15 @@ def evaluate_signal_accuracy():
             accuracy_24h=accuracy_24h,
         )
         logger.info("Evaluated %s: %s → %s", snapshot.ticker.symbol, snapshot.signal, actual_direction)
+
+        from apps.events.bus import publish
+        from apps.events.types import ACCURACY_EVALUATED
+
+        publish(ACCURACY_EVALUATED, {
+            "ticker": snapshot.ticker.symbol,
+            "signal_id": snapshot.id,
+            "predicted": snapshot.signal,
+            "actual": actual_direction,
+            "correct_1h": accuracy_1h,
+            "correct_24h": accuracy_24h,
+        })

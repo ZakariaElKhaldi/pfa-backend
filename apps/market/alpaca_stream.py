@@ -50,6 +50,16 @@ class AlpacaStreamManager:
                     "timestamp": bar.timestamp.isoformat(),
                 },
             )
+
+            from apps.events.bus import publish
+            from apps.events.types import PRICE_UPDATED
+
+            publish(PRICE_UPDATED, {
+                "ticker": bar.symbol,
+                "price": str(bar.close),
+                "volume": bar.volume,
+                "timestamp": bar.timestamp.isoformat(),
+            })
         except Exception as e:
             logger.error("Error storing bar for %s: %s", bar.symbol, e)
 

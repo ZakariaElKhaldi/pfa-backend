@@ -40,4 +40,16 @@ def check_and_create_alert(ticker, signal_data: dict) -> AlertFlag | None:
         consistency=consistency,
     )
     logger.info("Alert created: %s for %s", alert_type, ticker.symbol)
+
+    from apps.events.bus import publish
+    from apps.events.types import ALERT_CREATED
+
+    publish(ALERT_CREATED, {
+        "ticker": ticker.symbol,
+        "alert_type": alert_type,
+        "sentiment": sentiment,
+        "momentum": momentum,
+        "consistency": consistency,
+    })
+
     return alert
