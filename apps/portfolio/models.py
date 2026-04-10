@@ -1,15 +1,18 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 
 
 class Portfolio(models.Model):
-    name = models.CharField(max_length=100, default="My Portfolio")
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="portfolio"
+    )
     cash = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("100000.00"))
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        return f"Portfolio({self.user.email})"
 
 
 class Position(models.Model):
@@ -22,7 +25,7 @@ class Position(models.Model):
         unique_together = ("portfolio", "ticker")
 
     def __str__(self):
-        return f"{self.portfolio.name}:{self.ticker.symbol}x{self.quantity}"
+        return f"Portfolio({self.portfolio.user.email}):{self.ticker.symbol}x{self.quantity}"
 
 
 class Trade(models.Model):

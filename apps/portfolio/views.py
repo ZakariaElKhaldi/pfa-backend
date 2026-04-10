@@ -11,8 +11,10 @@ from .models import Portfolio, Position, Trade
 from .serializers import PortfolioSerializer
 
 
-def get_or_create_portfolio():
-    portfolio, _ = Portfolio.objects.get_or_create(id=1, defaults={"name": "My Portfolio"})
+def get_portfolio(user):
+    portfolio, _ = Portfolio.objects.get_or_create(
+        user=user, defaults={"cash": Decimal("100000.00")}
+    )
     return portfolio
 
 
@@ -25,7 +27,7 @@ def get_latest_price(ticker: Ticker) -> Decimal:
 
 class PortfolioView(APIView):
     def get(self, request):
-        portfolio = get_or_create_portfolio()
+        portfolio = get_portfolio(request.user)
         return Response(PortfolioSerializer(portfolio).data)
 
 
@@ -56,7 +58,7 @@ class BuyView(APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         total_cost = price * quantity
-        portfolio = get_or_create_portfolio()
+        portfolio = get_portfolio(request.user)
 
         if portfolio.cash < total_cost:
             return Response(
@@ -67,7 +69,6 @@ class BuyView(APIView):
         position, _ = Position.objects.get_or_create(
             portfolio=portfolio, ticker=ticker, defaults={"quantity": 0, "avg_price": price}
         )
-        # Recalculate avg price
         total_shares = position.quantity + quantity
         position.avg_price = (
             position.avg_price * position.quantity + price * quantity
@@ -110,7 +111,7 @@ class SellView(APIView):
         except Ticker.DoesNotExist:
             return Response({"detail": f"{symbol} not tracked"}, status=status.HTTP_400_BAD_REQUEST)
 
-        portfolio = get_or_create_portfolio()
+        portfolio = get_portfolio(request.user)
 
         try:
             position = Position.objects.get(portfolio=portfolio, ticker=ticker)

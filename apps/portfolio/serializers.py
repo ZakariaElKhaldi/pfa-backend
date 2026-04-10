@@ -16,7 +16,7 @@ class PortfolioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Portfolio
-        fields = ["id", "name", "cash", "positions", "created_at"]
+        fields = ["id", "cash", "positions", "created_at"]
 
 
 class TradeSerializer(serializers.ModelSerializer):
