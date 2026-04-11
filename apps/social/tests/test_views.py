@@ -1,14 +1,26 @@
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.accounts.models import CustomUser
 from apps.social.models import SocialPost
 from apps.tickers.models import Ticker
 
 
 @pytest.fixture
-def client():
-    return APIClient()
+def user(db):
+    return CustomUser.objects.create_user(
+        username="socialtest", email="socialtest@example.com", password="pass123"
+    )
+
+
+@pytest.fixture
+def client(user):
+    c = APIClient()
+    token = RefreshToken.for_user(user)
+    c.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
+    return c
 
 
 @pytest.fixture
@@ -28,7 +40,7 @@ def test_list_posts_for_ticker(client, ticker):
         sentiment_label=SocialPost.LABEL_BULLISH,
         posted_at=timezone.now(),
     )
-    response = client.get("/tickers/AAPL/posts/")
+    response = client.get("/api/tickers/AAPL/posts/")
     assert response.status_code == 200
     assert response.json()["count"] == 1
 

@@ -1,8 +1,26 @@
 import pytest
 from django.utils import timezone
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.accounts.models import CustomUser
 from apps.signals.models import SignalSnapshot
 from apps.tickers.models import Ticker
+
+
+@pytest.fixture
+def user(db):
+    return CustomUser.objects.create_user(
+        username="signaltest", email="signaltest@example.com", password="pass123"
+    )
+
+
+@pytest.fixture
+def client(user):
+    c = APIClient()
+    token = RefreshToken.for_user(user)
+    c.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
+    return c
 
 
 @pytest.fixture
@@ -34,7 +52,7 @@ def signal_snapshot(ticker):
 
 @pytest.mark.django_db
 def test_signal_endpoint_includes_aggregation_fields(client, signal_snapshot):
-    resp = client.get("/tickers/AAPL/signal/")
+    resp = client.get("/api/tickers/AAPL/signal/")
     assert resp.status_code == 200
     data = resp.json()
     assert data["signal"] == "BUY"
@@ -57,7 +75,7 @@ def test_signal_history_endpoint(client, signal_snapshot):
         signal="HOLD",
         post_count=5,
     )
-    resp = client.get("/tickers/AAPL/signal/history/")
+    resp = client.get("/api/tickers/AAPL/signal/history/")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 2
@@ -65,7 +83,7 @@ def test_signal_history_endpoint(client, signal_snapshot):
 
 @pytest.mark.django_db
 def test_signal_explain_endpoint(client, signal_snapshot):
-    resp = client.get("/tickers/AAPL/signal/explain/")
+    resp = client.get("/api/tickers/AAPL/signal/explain/")
     assert resp.status_code == 200
     data = resp.json()
     assert data["signal"] == "BUY"
@@ -78,7 +96,7 @@ def test_signal_explain_endpoint(client, signal_snapshot):
 
 @pytest.mark.django_db
 def test_signal_explain_404_when_no_signal(client, ticker):
-    resp = client.get("/tickers/AAPL/signal/explain/")
+    resp = client.get("/api/tickers/AAPL/signal/explain/")
     assert resp.status_code == 404
 
 
@@ -95,7 +113,7 @@ def test_indicators_endpoint(client, ticker):
             volume=1000000,
             timestamp=now - timedelta(days=25 - i),
         )
-    resp = client.get("/tickers/AAPL/indicators/")
+    resp = client.get("/api/tickers/AAPL/indicators/")
     assert resp.status_code == 200
     data = resp.json()
     assert data["symbol"] == "AAPL"
