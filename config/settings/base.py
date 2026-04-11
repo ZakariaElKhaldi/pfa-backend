@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.pipeline",
     "apps.events",
     "apps.export",
+    "apps.intelligence",
     "corsheaders",
     "django.contrib.sites",
     "allauth",
