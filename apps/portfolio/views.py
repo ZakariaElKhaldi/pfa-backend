@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,7 +9,7 @@ from apps.market.models import PriceSnapshot
 from apps.tickers.models import Ticker
 
 from .models import Portfolio, Position, Trade
-from .serializers import PortfolioSerializer
+from .serializers import PortfolioSerializer, TradeSerializer
 
 
 def get_portfolio(user):
@@ -160,3 +160,39 @@ class SellView(APIView):
             )
 
         return Response(PortfolioSerializer(portfolio).data)
+
+
+class PortfolioSummaryView(APIView):
+    def get(self, request):
+        portfolio = get_portfolio(request.user)
+        total_positions_value = Decimal("0")
+        cost_basis = Decimal("0")
+        for position in portfolio.positions.select_related("ticker").all():
+            try:
+                price = get_latest_price(position.ticker)
+            except (ValueError, Exception):
+                price = position.avg_price
+            total_positions_value += price * position.quantity
+            cost_basis += position.avg_price * position.quantity
+        total_value = portfolio.cash + total_positions_value
+        total_pnl = total_positions_value - cost_basis
+        total_pnl_pct = (
+            float(total_pnl / cost_basis * 100) if cost_basis else 0.0
+        )
+        return Response({
+            "cash": str(portfolio.cash),
+            "total_positions_value": str(total_positions_value),
+            "total_value": str(total_value),
+            "total_pnl": str(total_pnl),
+            "total_pnl_pct": round(total_pnl_pct, 2),
+            "position_count": portfolio.positions.count(),
+        })
+
+
+class TradeListView(generics.ListAPIView):
+    serializer_class = TradeSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        portfolio = get_portfolio(self.request.user)
+        return Trade.objects.filter(portfolio=portfolio).order_by("-executed_at")
