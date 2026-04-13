@@ -62,3 +62,22 @@ def test_delete_ticker(client):
 def test_get_nonexistent_ticker_returns_404(client):
     response = client.get("/api/tickers/FAKE/")
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_search_tickers_by_symbol(auth_client):
+    Ticker.objects.create(symbol="AAPL", name="Apple Inc.")
+    Ticker.objects.create(symbol="AMZN", name="Amazon")
+    response = auth_client.get("/api/tickers/?search=AAPL")
+    results = response.json().get("results", response.json())
+    assert len(results) == 1
+    assert results[0]["symbol"] == "AAPL"
+
+
+@pytest.mark.django_db
+def test_search_tickers_by_name(auth_client):
+    Ticker.objects.create(symbol="GOOG", name="Alphabet Inc.")
+    Ticker.objects.create(symbol="MSFT", name="Microsoft Corp.")
+    response = auth_client.get("/api/tickers/?search=alphabet")
+    results = response.json().get("results", response.json())
+    assert any(r["symbol"] == "GOOG" for r in results)

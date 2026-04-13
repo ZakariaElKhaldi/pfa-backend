@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import filters, generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,6 +9,8 @@ from .serializers import TickerSerializer, WatchlistSerializer
 class TickerListCreateView(generics.ListCreateAPIView):
     queryset = Ticker.objects.all().order_by("symbol")
     serializer_class = TickerSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["symbol", "name"]
 
 
 class TickerDetailView(generics.RetrieveDestroyAPIView):
