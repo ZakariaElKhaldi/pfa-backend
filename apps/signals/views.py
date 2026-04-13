@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin
+from apps.tickers.models import Watchlist
 
 from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
 from .serializers import (
@@ -101,3 +102,44 @@ class DecisionLogDetailView(generics.RetrieveAPIView):
     serializer_class = DecisionLogSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     queryset = DecisionLog.objects.all()
+
+
+class RecentSignalsView(generics.ListAPIView):
+    serializer_class = SignalSnapshotSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        limit = min(int(self.request.query_params.get("limit", 20)), 100)
+        watchlist_tickers = Watchlist.objects.filter(
+            user=self.request.user
+        ).values_list("ticker_id", flat=True)
+        if not watchlist_tickers:
+            return SignalSnapshot.objects.none()
+        return (
+            SignalSnapshot.objects
+            .filter(ticker_id__in=watchlist_tickers)
+            .order_by("-created_at")[:limit]
+        )
+
+
+class GlobalAccuracyView(APIView):
+    def get(self, request):
+        records = SignalAccuracy.objects.filter(accuracy_24h__isnull=False)
+        total = records.count()
+        if total == 0:
+            return Response({"overall_pct": None, "by_signal": {}, "total_evaluated": 0})
+        correct = records.filter(accuracy_24h=True).count()
+        overall_pct = round(correct / total * 100, 1)
+        by_signal = {}
+        for sig in ["BUY", "SELL", "HOLD"]:
+            sig_records = records.filter(predicted=sig)
+            sig_total = sig_records.count()
+            if sig_total:
+                by_signal[sig] = round(
+                    sig_records.filter(accuracy_24h=True).count() / sig_total * 100, 1
+                )
+        return Response({
+            "overall_pct": overall_pct,
+            "by_signal": by_signal,
+            "total_evaluated": total,
+        })

@@ -8,10 +8,16 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.base")
 
 # Import routing after env is set
 import apps.market.routing  # noqa: E402
+import apps.signals.routing  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": AuthMiddlewareStack(URLRouter(apps.market.routing.websocket_urlpatterns)),
+        "websocket": AuthMiddlewareStack(
+            URLRouter(
+                apps.market.routing.websocket_urlpatterns
+                + apps.signals.routing.websocket_urlpatterns
+            )
+        ),
     }
 )
