@@ -137,6 +137,7 @@ REST_AUTH = {
     "USE_JWT": True,
     "JWT_AUTH_HTTPONLY": False,
     "TOKEN_MODEL": None,
+    "REGISTER_SERIALIZER": "apps.accounts.serializers.CrowdSignalRegisterSerializer",
 }
 
 # ---------- allauth ----------
@@ -176,6 +177,7 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalSocialAdapter"
+ACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalAccountAdapter"
 
 # ---------- Rate Limiting ----------
 RATELIMIT_USE_CACHE = "default"

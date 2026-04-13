@@ -1,6 +1,19 @@
 from decimal import Decimal
 
+from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+
+
+class CrowdSignalAccountAdapter(DefaultAccountAdapter):
+    """
+    API-only backend — suppress all flash messages (no browser UI to receive them).
+    Also works around a Python 3.14 + Django 4.2 Context.__copy__ crash when allauth
+    tries to render message templates during the post-login flow.
+    """
+
+    def add_message(self, request, level, message_template=None,
+                    message_context=None, extra_tags="", message=None):
+        pass  # no-op: pure API backend has no flash message consumers
 
 
 class CrowdSignalSocialAdapter(DefaultSocialAccountAdapter):
