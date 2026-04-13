@@ -2,21 +2,23 @@ import csv
 import io
 from datetime import timedelta
 
-from django.http import StreamingHttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.negotiation import BaseContentNegotiation
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.market.models import PriceSnapshot
+from apps.portfolio.models import Portfolio, Trade
 from apps.signals.models import AlertFlag, SignalSnapshot
 from apps.social.models import SocialPost
-from apps.tickers.models import Ticker
+from apps.tickers.models import Ticker, Watchlist
 
 
 def _coerce_row(row):
@@ -145,3 +147,123 @@ class TickerExportView(APIView):
         response = StreamingHttpResponse(generate(), content_type="text/csv")
         response["Content-Disposition"] = f'attachment; filename="{symbol}_export.csv"'
         return response
+
+
+@method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
+class GlobalSignalExportView(APIView):
+    permission_classes = [IsAuthenticated]
+    content_negotiation_class = IgnoreClientContentNegotiation
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        fmt = request.query_params.get("format", "json")
+
+        watchlist_tickers = Watchlist.objects.filter(
+            user=request.user
+        ).values_list("ticker_id", flat=True)
+
+        qs = SignalSnapshot.objects.filter(
+            ticker_id__in=watchlist_tickers
+        ).select_related("ticker").order_by("-created_at")
+
+        from_dt = request.query_params.get("from")
+        to_dt = request.query_params.get("to")
+        if from_dt:
+            try:
+                qs = qs.filter(created_at__gte=from_dt)
+            except Exception:
+                pass
+        if to_dt:
+            try:
+                qs = qs.filter(created_at__lte=to_dt)
+            except Exception:
+                pass
+
+        if fmt == "csv":
+            response = HttpResponse(content_type="text/csv")
+            response["Content-Disposition"] = 'attachment; filename="signals.csv"'
+            writer = csv.writer(response)
+            writer.writerow([
+                "symbol", "signal", "sentiment", "momentum", "consistency",
+                "prediction_method", "prediction_confidence", "created_at",
+            ])
+            for s in qs:
+                writer.writerow([
+                    s.ticker.symbol, s.signal, s.sentiment, s.momentum,
+                    s.consistency, s.prediction_method, s.prediction_confidence,
+                    s.created_at.isoformat(),
+                ])
+            return response
+
+        data = [
+            {
+                "symbol": s.ticker.symbol,
+                "signal": s.signal,
+                "sentiment": s.sentiment,
+                "momentum": s.momentum,
+                "consistency": s.consistency,
+                "prediction_method": s.prediction_method,
+                "prediction_confidence": s.prediction_confidence,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in qs
+        ]
+        return Response(data)
+
+
+@method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
+class PortfolioExportView(APIView):
+    permission_classes = [IsAuthenticated]
+    content_negotiation_class = IgnoreClientContentNegotiation
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        fmt = request.query_params.get("format", "json")
+
+        try:
+            portfolio = Portfolio.objects.get(user=request.user)
+        except Portfolio.DoesNotExist:
+            if fmt == "csv":
+                response = HttpResponse(content_type="text/csv")
+                response["Content-Disposition"] = 'attachment; filename="portfolio.csv"'
+                csv.writer(response).writerow(["symbol", "side", "quantity", "price", "executed_at"])
+                return response
+            return Response([])
+
+        qs = Trade.objects.filter(portfolio=portfolio).select_related("ticker").order_by("-executed_at")
+
+        from_dt = request.query_params.get("from")
+        to_dt = request.query_params.get("to")
+        if from_dt:
+            try:
+                qs = qs.filter(executed_at__gte=from_dt)
+            except Exception:
+                pass
+        if to_dt:
+            try:
+                qs = qs.filter(executed_at__lte=to_dt)
+            except Exception:
+                pass
+
+        if fmt == "csv":
+            response = HttpResponse(content_type="text/csv")
+            response["Content-Disposition"] = 'attachment; filename="portfolio.csv"'
+            writer = csv.writer(response)
+            writer.writerow(["symbol", "side", "quantity", "price", "executed_at"])
+            for t in qs:
+                writer.writerow([
+                    t.ticker.symbol, t.side, t.quantity, str(t.price), t.executed_at.isoformat(),
+                ])
+            return response
+
+        data = [
+            {
+                "symbol": t.ticker.symbol,
+                "side": t.side,
+                "quantity": t.quantity,
+                "price": str(t.price),
+                "executed_at": t.executed_at.isoformat(),
+            }
+            for t in qs
+        ]
+        return Response(data)
