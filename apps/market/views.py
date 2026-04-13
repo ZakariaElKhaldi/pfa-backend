@@ -43,3 +43,18 @@ class TickerIndicatorsView(APIView):
             "macd": macd_result,
             "volatility": historical_volatility(close_prices, 20),
         })
+
+
+class TickerQuoteView(APIView):
+    """Returns the single most recent PriceSnapshot for a ticker."""
+
+    def get(self, request, symbol):
+        snap = (
+            PriceSnapshot.objects
+            .filter(ticker__symbol=symbol.upper())
+            .order_by("-timestamp")
+            .first()
+        )
+        if snap is None:
+            return Response({"detail": "No price data."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(PriceSnapshotSerializer(snap).data)
