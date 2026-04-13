@@ -4,9 +4,13 @@ from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
 
 
 class SignalSnapshotSerializer(serializers.ModelSerializer):
+    ticker_symbol = serializers.CharField(source="ticker.symbol", read_only=True)
+
     class Meta:
         model = SignalSnapshot
         fields = [
+            "id",
+            "ticker_symbol",
             "sentiment",
             "momentum",
             "consistency",
