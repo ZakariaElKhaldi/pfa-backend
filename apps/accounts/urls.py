@@ -1,10 +1,11 @@
 from django.urls import include, path
 from dj_rest_auth.jwt_auth import get_refresh_view
-from dj_rest_auth.views import LogoutView, UserDetailsView
+from dj_rest_auth.views import LoginView, LogoutView, UserDetailsView
 
 from .views import AdminStatsView, AdminUserDetailView, AdminUserListView, GitHubLogin, GoogleLogin
 
 urlpatterns = [
+    path("login/", LoginView.as_view(), name="auth-login"),
     path("user/", UserDetailsView.as_view(), name="auth-user"),
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("token/refresh/", get_refresh_view().as_view(), name="token-refresh"),

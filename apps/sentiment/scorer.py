@@ -19,10 +19,14 @@ class SentimentScorer:
     def _load(self):
         if self._pipeline is None:
             logger.info("Loading FinBERT model (first call only)...")
+            from transformers import BertTokenizer, BertForSequenceClassification
+            tokenizer = BertTokenizer.from_pretrained("yiyanghkust/finbert-tone")
+            model = BertForSequenceClassification.from_pretrained("yiyanghkust/finbert-tone")
             self._pipeline = pipeline(
                 "text-classification",
-                model="yiyanghkust/finbert-tone",
-                return_all_scores=True,
+                model=model,
+                tokenizer=tokenizer,
+                top_k=None,
             )
             logger.info("FinBERT model loaded.")
 

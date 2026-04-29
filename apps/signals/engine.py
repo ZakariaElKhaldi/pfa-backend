@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from apps.signals.aggregation import compute_aggregated_sentiment
+from apps.signals.hype import apply_hype_dampener, compute_mention_rate_z
 from apps.signals.models import SignalSnapshot
 
 logger = logging.getLogger(__name__)
@@ -11,6 +12,34 @@ logger = logging.getLogger(__name__)
 BUY_SENTIMENT_THRESHOLD = 0.5
 SELL_SENTIMENT_THRESHOLD = -0.3
 CONSISTENCY_THRESHOLD = 0.5
+HYPE_BASELINE_DAYS = 30
+HYPE_WINDOW_MINUTES = 30
+HYPE_Z_THRESHOLD = 2.0
+HYPE_LAMBDA = 0.5
+
+
+def _compute_baseline_counts(ticker, now, window_minutes: int, lookback_days: int) -> list[int]:
+    """Return per-window post counts over last `lookback_days`, excluding current window."""
+    from apps.social.models import SocialPost
+
+    window_seconds = window_minutes * 60
+    baseline_start = now - timedelta(days=lookback_days)
+    current_window_start = now - timedelta(minutes=window_minutes)
+
+    posts = list(
+        SocialPost.objects.filter(
+            ticker=ticker,
+            fetched_at__gte=baseline_start,
+            fetched_at__lt=current_window_start,
+        ).values_list("fetched_at", flat=True)
+    )
+    if not posts:
+        return []
+    counts: dict[int, int] = {}
+    for ts in posts:
+        bucket = int(ts.timestamp() // window_seconds)
+        counts[bucket] = counts.get(bucket, 0) + 1
+    return list(counts.values())
 
 
 def compute_signal(ticker_symbol: str) -> dict | None:
@@ -48,7 +77,16 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     agg = compute_aggregated_sentiment(post_dicts, now=timezone.now())
 
     # Use time-decay weighted score as primary sentiment (Paper 5)
-    sentiment = agg["time_decay_score"]
+    raw_sentiment = agg["time_decay_score"]
+
+    # Fade-the-hype guardrail (Long 2024): dampen sentiment if mention rate spikes
+    baseline_counts = _compute_baseline_counts(
+        ticker, timezone.now(), HYPE_WINDOW_MINUTES, HYPE_BASELINE_DAYS
+    )
+    mention_rate_z = compute_mention_rate_z(post_count, baseline_counts)
+    sentiment, hype_dampened = apply_hype_dampener(
+        raw_sentiment, mention_rate_z, z_threshold=HYPE_Z_THRESHOLD, lambda_=HYPE_LAMBDA
+    )
 
     # Momentum: % price change over last 30 minutes, normalized to [-1, 1]
     prices = PriceSnapshot.objects.filter(ticker=ticker, timestamp__gte=cutoff).order_by(
@@ -90,6 +128,10 @@ def compute_signal(ticker_symbol: str) -> dict | None:
         "positive_count": agg["positive_count"],
         "negative_count": agg["negative_count"],
         "neutral_count": agg["neutral_count"],
+        # Fade-the-hype guardrail (Long 2024)
+        "raw_sentiment": raw_sentiment,
+        "mention_rate_z": mention_rate_z,
+        "hype_dampened": hype_dampened,
     }
 
     # Decision logging
@@ -102,6 +144,9 @@ def compute_signal(ticker_symbol: str) -> dict | None:
         "scoring_detail": {
             "aggregation": agg,
             "sentiment": sentiment,
+            "raw_sentiment": raw_sentiment,
+            "mention_rate_z": mention_rate_z,
+            "hype_dampened": hype_dampened,
             "momentum": momentum,
             "consistency": consistency,
         },

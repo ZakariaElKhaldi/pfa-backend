@@ -33,14 +33,21 @@ class ManipulationFlag(models.Model):
 class RetrainLog(models.Model):
     """Log of model retraining events triggered by accuracy drift."""
 
+    ticker = models.ForeignKey(
+        "tickers.Ticker",
+        on_delete=models.CASCADE,
+        related_name="retrain_logs",
+        null=True,
+        blank=True,
+    )
     trigger_reason = models.CharField(max_length=100)
     old_accuracy = models.FloatField()
-    new_accuracy = models.FloatField(null=True)
-    model_version = models.CharField(max_length=50)
-    training_samples = models.IntegerField()
-    started_at = models.DateTimeField()
-    completed_at = models.DateTimeField(null=True)
-    status = models.CharField(max_length=20)  # running, success, failed
+    new_accuracy = models.FloatField(null=True, blank=True)
+    model_version = models.CharField(max_length=50, blank=True, default="")
+    training_samples = models.IntegerField(default=0)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, default="running")  # running, success, failed
 
     class Meta:
         ordering = ["-started_at"]

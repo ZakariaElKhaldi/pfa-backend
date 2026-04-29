@@ -41,9 +41,13 @@ class SignalSnapshot(models.Model):
 class AlertFlag(models.Model):
     TYPE_DIVERGENCE = "divergence"
     TYPE_EXTREME = "extreme_sentiment"
+    TYPE_HYPE_FADE = "hype_fade"
+    TYPE_PUMP_SUSPECTED = "pump_suspected"
     TYPE_CHOICES = [
         (TYPE_DIVERGENCE, "Divergence"),
         (TYPE_EXTREME, "Extreme Sentiment"),
+        (TYPE_HYPE_FADE, "Hype Fade"),
+        (TYPE_PUMP_SUSPECTED, "Pump Suspected"),
     ]
 
     ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE, related_name="alerts")

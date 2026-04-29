@@ -22,15 +22,18 @@ def check_and_create_alert(ticker, signal_data: dict) -> AlertFlag | None:
     post_count = signal_data["post_count"]
     sentiment = signal_data["sentiment"]
     momentum = signal_data["momentum"]
+    hype_dampened = signal_data.get("hype_dampened", False)
 
-    if consistency >= CONSISTENCY_THRESHOLD or post_count < MIN_POST_COUNT:
+    if hype_dampened:
+        alert_type = AlertFlag.TYPE_HYPE_FADE
+    elif consistency >= CONSISTENCY_THRESHOLD or post_count < MIN_POST_COUNT:
         return None
-
-    alert_type = (
-        AlertFlag.TYPE_EXTREME
-        if abs(sentiment) > EXTREME_SENTIMENT_THRESHOLD
-        else AlertFlag.TYPE_DIVERGENCE
-    )
+    else:
+        alert_type = (
+            AlertFlag.TYPE_EXTREME
+            if abs(sentiment) > EXTREME_SENTIMENT_THRESHOLD
+            else AlertFlag.TYPE_DIVERGENCE
+        )
 
     alert = AlertFlag.objects.create(
         ticker=ticker,

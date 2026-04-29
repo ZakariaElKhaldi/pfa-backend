@@ -45,3 +45,37 @@ def test_alert_defaults_to_unresolved(ticker):
     check_and_create_alert(ticker, data)
     alert = AlertFlag.objects.get(ticker=ticker)
     assert alert.resolved is False
+
+
+# --- Fade-the-hype alert (Long 2024) ---
+
+
+@pytest.mark.django_db
+def test_hype_fade_alert_when_dampener_fires(ticker):
+    """hype_dampened=True flag → creates TYPE_HYPE_FADE alert regardless of consistency."""
+    data = {
+        "sentiment": 0.35,
+        "momentum": 0.7,
+        "consistency": 0.8,
+        "post_count": 100,
+        "hype_dampened": True,
+        "mention_rate_z": 3.5,
+    }
+    check_and_create_alert(ticker, data)
+    alert = AlertFlag.objects.get(ticker=ticker)
+    assert alert.type == AlertFlag.TYPE_HYPE_FADE
+
+
+@pytest.mark.django_db
+def test_no_hype_fade_alert_when_dampener_inactive(ticker):
+    """hype_dampened=False → no hype_fade alert (other rules may still fire)."""
+    data = {
+        "sentiment": 0.6,
+        "momentum": 0.6,
+        "consistency": 0.9,
+        "post_count": 10,
+        "hype_dampened": False,
+        "mention_rate_z": 0.5,
+    }
+    check_and_create_alert(ticker, data)
+    assert AlertFlag.objects.filter(ticker=ticker, type=AlertFlag.TYPE_HYPE_FADE).count() == 0

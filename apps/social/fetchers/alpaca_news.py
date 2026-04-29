@@ -33,7 +33,7 @@ class AlpacaNewsFetcher(BaseFetcher):
             news = self.client.get_news(request_params)
             
             posts = []
-            for item in news.news:
+            for item in news.data.get("news", []):
                 posts.append({
                     "source": "news_alpaca",
                     "external_id": str(item.id),

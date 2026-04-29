@@ -16,6 +16,12 @@ MIN_TRAINING_SAMPLES = 30
 LABEL_MAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
 REVERSE_LABEL_MAP = {"HOLD": 0, "BUY": 1, "SELL": 2}
 
+# Canonical feature order — must match training command feature list
+FEATURE_NAMES = [
+    "sentiment", "momentum", "consistency", "post_count",
+    "bullish_ratio", "normalized_index", "time_decay_score", "source_weighted_score",
+]
+
 
 class SignalModelTrainer:
     """Train and evaluate XGBoost signal prediction models."""

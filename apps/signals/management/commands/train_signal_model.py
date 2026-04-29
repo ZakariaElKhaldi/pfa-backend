@@ -5,8 +5,7 @@ import numpy as np
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.signals.features import build_feature_vector
-from apps.signals.ml.trainer import SignalModelTrainer, REVERSE_LABEL_MAP
+from apps.signals.ml.trainer import REVERSE_LABEL_MAP, SignalModelTrainer
 from apps.signals.models import SignalSnapshot
 from apps.tickers.models import Ticker
 

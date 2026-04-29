@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -27,12 +28,16 @@ def get_latest_price(ticker: Ticker) -> Decimal:
 
 
 class PortfolioView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         portfolio = get_portfolio(request.user)
         return Response(PortfolioSerializer(portfolio).data)
 
 
 class BuyView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
         try:
@@ -96,6 +101,8 @@ class BuyView(APIView):
 
 
 class SellView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
         try:
@@ -163,6 +170,8 @@ class SellView(APIView):
 
 
 class PortfolioSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         portfolio = get_portfolio(request.user)
         total_positions_value = Decimal("0")
@@ -191,6 +200,7 @@ class PortfolioSummaryView(APIView):
 
 class TradeListView(generics.ListAPIView):
     serializer_class = TradeSerializer
+    permission_classes = [IsAuthenticated]
     pagination_class = None
 
     def get_queryset(self):

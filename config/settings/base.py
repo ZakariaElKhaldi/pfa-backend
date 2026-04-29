@@ -105,6 +105,23 @@ CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://redis:6
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 
+from datetime import timedelta  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    "pipeline-run-every-15min": {
+        "task": "pipeline.run_pipeline",
+        "schedule": timedelta(minutes=15),
+    },
+    "signals-evaluate-accuracy-hourly": {
+        "task": "signals.evaluate_accuracy",
+        "schedule": timedelta(hours=1),
+    },
+    "mood-snapshots-hourly": {
+        "task": "intelligence.compute_mood_snapshots",
+        "schedule": timedelta(hours=1),
+    },
+}
+
 # ---------- Authentication ----------
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",

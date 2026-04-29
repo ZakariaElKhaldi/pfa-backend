@@ -8,6 +8,23 @@ class IsAdmin(BasePermission):
         return request.user.is_authenticated and request.user.role == "admin"
 
 
+class IsAnalyst(BasePermission):
+    """Allows access only to users with role='analyst'."""
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == "analyst"
+
+
+class IsAnalystOrAdmin(BasePermission):
+    """Allows access to users with role='analyst' or role='admin'."""
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ("analyst", "admin")
+        )
+
+
 class HasPermission(BasePermission):
     """
     RBAC scaffold — checks user.permissions JSONField.

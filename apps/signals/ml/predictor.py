@@ -77,6 +77,10 @@ class SignalPredictor:
             logger.error("ML prediction failed for %s: %s", ticker_symbol, e)
             return self._fallback(fallback_signal, fallback_sentiment)
 
+    def get_model(self, ticker_symbol: str):
+        """Return loaded model for ticker, or None if not available."""
+        return self._load_model(ticker_symbol)
+
     def _fallback(self, signal: str, sentiment: float) -> dict:
         """Rule-based fallback result."""
         return {

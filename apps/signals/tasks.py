@@ -4,6 +4,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.intelligence.retrainer import check_and_maybe_retrain
 from apps.market.models import PriceSnapshot
 from apps.signals.models import SignalAccuracy, SignalSnapshot
 
@@ -94,3 +95,8 @@ def evaluate_signal_accuracy():
             "correct_1h": accuracy_1h,
             "correct_24h": accuracy_24h,
         })
+
+        try:
+            check_and_maybe_retrain(snapshot.ticker.symbol)
+        except Exception as exc:
+            logger.exception("Retrainer check failed for %s: %s", snapshot.ticker.symbol, exc)

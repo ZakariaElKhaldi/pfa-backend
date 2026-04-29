@@ -6,7 +6,7 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     role = models.CharField(
         max_length=20,
-        choices=[("user", "User"), ("admin", "Admin")],
+        choices=[("user", "User"), ("analyst", "Analyst"), ("admin", "Admin")],
         default="user",
     )
     # RBAC scaffold — not enforced in MVP

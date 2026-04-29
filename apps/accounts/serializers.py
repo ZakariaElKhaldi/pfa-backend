@@ -7,8 +7,8 @@ from .models import CustomUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ["id", "email", "username", "role", "date_joined"]
-        read_only_fields = ["id", "date_joined"]
+        fields = ["id", "email", "username", "role", "is_active", "date_joined"]
+        read_only_fields = ["id", "is_active", "date_joined"]
 
 
 class CrowdSignalRegisterSerializer(BaseRegisterSerializer):

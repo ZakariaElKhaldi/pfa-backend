@@ -1,0 +1,232 @@
+```mermaid
+classDiagram
+    class Ticker {
+        +BigAutoField id PK
+        +CharField symbol
+        +CharField name
+        +DateTimeField created_at
+    }
+    class Watchlist {
+        +BigAutoField id PK
+        +ForeignKey user FK
+        +ForeignKey ticker FK
+        +DateTimeField added_at
+    }
+    class SocialPost {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +CharField source
+        +CharField external_id
+        +CharField title
+        +CharField url
+        +TextField content
+        +TextField cleaned_text
+        +FloatField sentiment_score
+        +CharField sentiment_label
+        +FloatField positive_prob
+        +FloatField negative_prob
+        +FloatField neutral_prob
+        +DateTimeField posted_at
+        +DateTimeField fetched_at
+    }
+    class SignalSnapshot {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +FloatField sentiment
+        +FloatField momentum
+        +FloatField consistency
+        +CharField signal
+        +IntegerField post_count
+        +FloatField bullish_ratio
+        +FloatField normalized_index
+        +FloatField time_decay_score
+        +FloatField source_weighted_score
+        +IntegerField positive_count
+        +IntegerField negative_count
+        +IntegerField neutral_count
+        +CharField prediction_method
+        +FloatField prediction_confidence
+        +JSONField feature_importances
+        +DateTimeField created_at
+    }
+    class AlertFlag {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +CharField type
+        +FloatField sentiment
+        +FloatField momentum
+        +FloatField consistency
+        +DateTimeField created_at
+        +BooleanField resolved
+    }
+    class SignalAccuracy {
+        +BigAutoField id PK
+        +OneToOneField signal_snapshot FK
+        +CharField predicted
+        +CharField actual_direction
+        +DecimalField price_at_signal
+        +DecimalField price_after_1h
+        +DecimalField price_after_24h
+        +BooleanField accuracy_1h
+        +BooleanField accuracy_24h
+        +DateTimeField evaluated_at
+    }
+    class DecisionLog {
+        +BigAutoField id PK
+        +OneToOneField signal_snapshot FK
+        +ForeignKey ticker FK
+        +DateTimeField timestamp
+        +JSONField input_summary
+        +JSONField scoring_detail
+        +JSONField engine_output
+        +JSONField alerts_triggered
+    }
+    class PriceSnapshot {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +DecimalField price
+        +DecimalField open_price
+        +DecimalField high_price
+        +DecimalField low_price
+        +BigIntegerField volume
+        +DateTimeField timestamp
+    }
+    class Portfolio {
+        +BigAutoField id PK
+        +OneToOneField user FK
+        +DecimalField cash
+        +DateTimeField created_at
+    }
+    class Position {
+        +BigAutoField id PK
+        +ForeignKey portfolio FK
+        +ForeignKey ticker FK
+        +IntegerField quantity
+        +DecimalField avg_price
+    }
+    class Trade {
+        +BigAutoField id PK
+        +ForeignKey portfolio FK
+        +ForeignKey ticker FK
+        +CharField side
+        +IntegerField quantity
+        +DecimalField price
+        +DateTimeField executed_at
+    }
+    class MarketMoodSnapshot {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +JSONField embedding
+        +CharField dominant_mood
+        +FloatField confidence
+        +DateTimeField window_start
+        +DateTimeField window_end
+        +DateTimeField created_at
+    }
+    class ManipulationFlag {
+        +BigAutoField id PK
+        +ForeignKey ticker FK
+        +CharField pattern_type
+        +FloatField confidence
+        +JSONField evidence
+        +DateTimeField detected_at
+        +BooleanField reviewed
+    }
+    class RetrainLog {
+        +BigAutoField id PK
+        +CharField trigger_reason
+        +FloatField old_accuracy
+        +FloatField new_accuracy
+        +CharField model_version
+        +IntegerField training_samples
+        +DateTimeField started_at
+        +DateTimeField completed_at
+        +CharField status
+    }
+    class CustomUser {
+        +BigAutoField id PK
+        +CharField password
+        +DateTimeField last_login
+        +BooleanField is_superuser
+        +CharField username
+        +CharField first_name
+        +CharField last_name
+        +BooleanField is_staff
+        +BooleanField is_active
+        +DateTimeField date_joined
+        +CharField email
+        +CharField role
+        +JSONField permissions
+        +ManyToManyField groups
+        +ManyToManyField user_permissions
+    }
+    class APIKey {
+        +BigAutoField id PK
+        +ForeignKey user FK
+        +CharField key
+        +CharField name
+        +JSONField scopes
+        +DateTimeField created_at
+        +DateTimeField expires_at
+        +BooleanField is_active
+        +DateTimeField last_used_at
+    }
+    class StrategyRule {
+        +BigAutoField id PK
+        +ForeignKey user FK
+        +CharField name
+        +TextField description
+        +BooleanField is_active
+        +DateTimeField created_at
+        +DateTimeField updated_at
+        +ManyToManyField tickers
+    }
+    class RuleCondition {
+        +BigAutoField id PK
+        +ForeignKey rule FK
+        +CharField field
+        +CharField operator
+        +CharField value
+        +CharField logical_op
+        +IntegerField order
+    }
+    class RuleAction {
+        +BigAutoField id PK
+        +ForeignKey rule FK
+        +CharField action_type
+        +JSONField config
+        +IntegerField order
+    }
+    class StrategyExecution {
+        +BigAutoField id PK
+        +ForeignKey rule FK
+        +DateTimeField triggered_at
+        +CharField event_type
+        +JSONField event_data
+        +JSONField conditions_matched
+        +JSONField actions_taken
+        +BooleanField success
+    }
+    CustomUser <-- Watchlist : user
+    Ticker <-- Watchlist : ticker
+    Ticker <-- SocialPost : ticker
+    Ticker <-- SignalSnapshot : ticker
+    Ticker <-- AlertFlag : ticker
+    SignalSnapshot <|--|> SignalAccuracy : signal_snapshot
+    SignalSnapshot <|--|> DecisionLog : signal_snapshot
+    Ticker <-- DecisionLog : ticker
+    Ticker <-- PriceSnapshot : ticker
+    CustomUser <|--|> Portfolio : user
+    Portfolio <-- Position : portfolio
+    Ticker <-- Position : ticker
+    Portfolio <-- Trade : portfolio
+    Ticker <-- Trade : ticker
+    Ticker <-- MarketMoodSnapshot : ticker
+    Ticker <-- ManipulationFlag : ticker
+    CustomUser <-- APIKey : user
+    CustomUser <-- StrategyRule : user
+    Ticker "*" <-- "*" StrategyRule : tickers
+    StrategyRule <-- RuleCondition : rule
+    StrategyRule <-- RuleAction : rule
+    StrategyRule <-- StrategyExecution : rule
+```
