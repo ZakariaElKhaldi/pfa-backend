@@ -41,3 +41,23 @@ class APIKey(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.email})"
+
+
+class UserPreference(models.Model):
+    THEME_CHOICES = [("light", "Light"), ("dark", "Dark"), ("system", "System")]
+    DIGEST_CHOICES = [("off", "Off"), ("daily", "Daily"), ("weekly", "Weekly")]
+
+    user = models.OneToOneField(
+        CustomUser, on_delete=models.CASCADE, related_name="preferences"
+    )
+    theme = models.CharField(max_length=10, choices=THEME_CHOICES, default="system")
+    default_ticker = models.CharField(max_length=10, blank=True)
+    alert_email = models.BooleanField(default=True)
+    alert_push = models.BooleanField(default=True)
+    digest_frequency = models.CharField(
+        max_length=10, choices=DIGEST_CHOICES, default="off"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"prefs:{self.user.email}"
