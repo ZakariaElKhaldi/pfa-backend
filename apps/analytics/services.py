@@ -1,10 +1,14 @@
 """Pure functions powering analytics endpoints. No DRF imports here."""
+import statistics
 from datetime import timedelta
 from typing import Literal
 
 from django.utils import timezone
 
+from apps.market.models import PriceSnapshot
 from apps.signals.models import SignalSnapshot
+from apps.social.models import SocialPost
+from apps.tickers.models import Ticker
 
 WindowSpec = Literal["1h", "24h", "7d", "30d"]
 WINDOW_MAP = {
@@ -86,3 +90,58 @@ def compute_sentiment_leaderboard(window: timedelta, limit: int) -> list[dict]:
     ]
     rows.sort(key=lambda r: r["bullish_ratio"], reverse=True)
     return rows[:limit]
+
+
+def _pearson(x: list[float], y: list[float]) -> float:
+    if len(x) < 2 or len(y) < 2 or len(x) != len(y):
+        return 0.0
+    if statistics.pstdev(x) == 0 or statistics.pstdev(y) == 0:
+        return 0.0
+    n = len(x)
+    mx, my = statistics.mean(x), statistics.mean(y)
+    num = sum((x[i] - mx) * (y[i] - my) for i in range(n))
+    den_x = sum((xi - mx) ** 2 for xi in x) ** 0.5
+    den_y = sum((yi - my) ** 2 for yi in y) ** 0.5
+    if den_x == 0 or den_y == 0:
+        return 0.0
+    return round(num / (den_x * den_y), 6)
+
+
+def compute_correlation_matrix(symbols: list[str], window: timedelta, metric: str) -> dict:
+    if len(symbols) < 2:
+        raise ValueError("Need at least 2 symbols for correlation")
+    if len(symbols) > 10:
+        raise ValueError("Maximum 10 symbols allowed")
+    if metric not in ("price", "sentiment"):
+        raise ValueError("metric must be 'price' or 'sentiment'")
+
+    end = timezone.now()
+    start = end - window
+    series_per_symbol: dict[str, list[float]] = {}
+
+    for symbol in symbols:
+        try:
+            ticker = Ticker.objects.get(symbol=symbol.upper())
+        except Ticker.DoesNotExist:
+            raise ValueError(f"Unknown ticker: {symbol}")
+        if metric == "price":
+            qs = PriceSnapshot.objects.filter(
+                ticker=ticker, timestamp__range=(start, end)
+            ).order_by("timestamp")
+            series_per_symbol[ticker.symbol] = [float(p.price) for p in qs]
+        else:
+            qs = SocialPost.objects.filter(
+                ticker=ticker, posted_at__range=(start, end),
+                sentiment_score__isnull=False,
+            ).order_by("posted_at")
+            series_per_symbol[ticker.symbol] = [p.sentiment_score for p in qs]
+
+    min_len = min((len(s) for s in series_per_symbol.values()), default=0)
+    aligned = {sym: vals[-min_len:] for sym, vals in series_per_symbol.items()}
+
+    syms = list(aligned.keys())
+    matrix = [
+        [_pearson(aligned[a], aligned[b]) for b in syms]
+        for a in syms
+    ]
+    return {"symbols": syms, "matrix": matrix}
