@@ -3,16 +3,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin
+from apps.accounts.permissions import IsAdmin, IsAnalystOrAdmin
 
 from .models import ManipulationFlag, RetrainLog
 from .serializers import ManipulationFlagSerializer, RetrainLogSerializer
 
 
 class ManipulationFlagListView(generics.ListAPIView):
-    """GET /api/intelligence/flags/ — admin only, newest first."""
+    """GET /api/intelligence/flags/ — analyst+admin, newest first."""
     serializer_class = ManipulationFlagSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
 
     def get_queryset(self):
         qs = ManipulationFlag.objects.all()
@@ -25,7 +25,7 @@ class ManipulationFlagListView(generics.ListAPIView):
 
 
 class ManipulationFlagReviewView(APIView):
-    """PATCH /api/intelligence/flags/<pk>/review/ — marks flag as reviewed."""
+    """PATCH /api/intelligence/flags/<pk>/review/ — admin only (mutates)."""
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, pk):
@@ -39,7 +39,7 @@ class ManipulationFlagReviewView(APIView):
 
 
 class RetrainLogListView(generics.ListAPIView):
-    """GET /api/intelligence/retrain-logs/ — admin only, newest first."""
+    """GET /api/intelligence/retrain-logs/ — analyst+admin, newest first."""
     serializer_class = RetrainLogSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
     queryset = RetrainLog.objects.all()

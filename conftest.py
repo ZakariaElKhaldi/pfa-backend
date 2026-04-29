@@ -40,6 +40,22 @@ def admin_client(admin_user):
 
 
 @pytest.fixture
+def analyst_user(db):
+    return CustomUser.objects.create_user(
+        username="analystuser", email="analyst@example.com",
+        password="analystpass123", role="analyst",
+    )
+
+
+@pytest.fixture
+def analyst_client(analyst_user):
+    client = APIClient()
+    token = RefreshToken.for_user(analyst_user)
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
+    return client
+
+
+@pytest.fixture
 def ticker(db):
     return Ticker.objects.create(symbol="AAPL", name="Apple Inc.")
 
