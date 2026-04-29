@@ -25,3 +25,5 @@ CACHES = {
 
 # Disable rate limiting in tests
 RATELIMIT_ENABLE = False
+
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

@@ -140,6 +140,14 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "analyst_export": "30/min",
+        "backtest": "5/min",
+        "dj_rest_auth": "100/min",
+    },
 }
 
 # ---------- JWT ----------
