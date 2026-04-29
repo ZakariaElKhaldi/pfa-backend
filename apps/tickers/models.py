@@ -5,6 +5,7 @@ from django.db import models
 class Ticker(models.Model):
     symbol = models.CharField(max_length=10, unique=True)
     name = models.CharField(max_length=200, blank=True)
+    sector = models.CharField(max_length=50, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
