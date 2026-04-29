@@ -55,3 +55,14 @@ class CorrelationView(APIView):
             return Response(services.compute_correlation_matrix(symbols, window, metric))
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
+
+
+class SectorRollupView(APIView):
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+
+    def get(self, request):
+        try:
+            window = services.parse_window(request.query_params.get("window", "24h"))
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response(services.compute_sector_rollup(window))

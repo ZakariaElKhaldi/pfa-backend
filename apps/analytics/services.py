@@ -145,3 +145,35 @@ def compute_correlation_matrix(symbols: list[str], window: timedelta, metric: st
         for a in syms
     ]
     return {"symbols": syms, "matrix": matrix}
+
+
+def compute_sector_rollup(window: timedelta) -> list[dict]:
+    """Aggregate latest snapshot per ticker grouped by sector."""
+    end = timezone.now()
+    start = end - window
+
+    latest_per_ticker: dict[int, SignalSnapshot] = {}
+    qs = (
+        SignalSnapshot.objects
+        .filter(created_at__range=(start, end), normalized_index__isnull=False)
+        .select_related("ticker")
+        .order_by("created_at")
+    )
+    for s in qs:
+        latest_per_ticker[s.ticker_id] = s
+
+    by_sector: dict[str, list[SignalSnapshot]] = {}
+    for s in latest_per_ticker.values():
+        sector = s.ticker.sector or "Uncategorised"
+        by_sector.setdefault(sector, []).append(s)
+
+    rows = []
+    for sector, snaps in by_sector.items():
+        rows.append({
+            "sector": sector,
+            "ticker_count": len(snaps),
+            "avg_signal": round(sum(s.normalized_index for s in snaps) / len(snaps), 6),
+            "avg_sentiment": round(sum(s.sentiment for s in snaps) / len(snaps), 6),
+        })
+    rows.sort(key=lambda r: r["avg_signal"], reverse=True)
+    return rows
