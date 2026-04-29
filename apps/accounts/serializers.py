@@ -1,7 +1,7 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer as BaseRegisterSerializer
 from rest_framework import serializers
 
-from .models import CustomUser
+from .models import CustomUser, UserPreference
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -9,6 +9,18 @@ class UserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ["id", "email", "username", "role", "is_active", "date_joined"]
         read_only_fields = ["id", "is_active", "date_joined"]
+
+
+class UserPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserPreference
+        fields = [
+            "theme",
+            "default_ticker",
+            "alert_email",
+            "alert_push",
+            "digest_frequency",
+        ]
 
 
 class CrowdSignalRegisterSerializer(BaseRegisterSerializer):

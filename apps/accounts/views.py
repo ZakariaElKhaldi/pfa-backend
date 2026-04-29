@@ -9,9 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CustomUser
+from .models import CustomUser, UserPreference
 from .permissions import IsAdmin
-from .serializers import UserSerializer
+from .serializers import UserPreferenceSerializer, UserSerializer
 
 
 @method_decorator(ratelimit(key="ip", rate="20/m", method="POST", block=True), name="post")
@@ -56,3 +56,20 @@ class AdminStatsView(APIView):
             ).count(),
             "total_posts": SocialPost.objects.count(),
         })
+
+
+class UserPreferenceView(APIView):
+    """GET / PATCH /api/auth/preferences/ — auto-creates row on first GET."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        pref, _ = UserPreference.objects.get_or_create(user=request.user)
+        return Response(UserPreferenceSerializer(pref).data)
+
+    def patch(self, request):
+        pref, _ = UserPreference.objects.get_or_create(user=request.user)
+        serializer = UserPreferenceSerializer(pref, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+        serializer.save()
+        return Response(serializer.data)

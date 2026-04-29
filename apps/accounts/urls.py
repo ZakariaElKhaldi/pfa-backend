@@ -9,7 +9,14 @@ from dj_rest_auth.views import (
     UserDetailsView,
 )
 
-from .views import AdminStatsView, AdminUserDetailView, AdminUserListView, GitHubLogin, GoogleLogin
+from .views import (
+    AdminStatsView,
+    AdminUserDetailView,
+    AdminUserListView,
+    GitHubLogin,
+    GoogleLogin,
+    UserPreferenceView,
+)
 
 urlpatterns = [
     path("login/", LoginView.as_view(), name="auth-login"),
@@ -23,6 +30,8 @@ urlpatterns = [
     path("password/change/", PasswordChangeView.as_view(), name="password-change"),
     path("password/reset/", PasswordResetView.as_view(), name="password-reset"),
     path("password/reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
+    # Preferences
+    path("preferences/", UserPreferenceView.as_view(), name="user-preferences"),
     # Admin
     path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
     path("admin/users/<int:pk>/", AdminUserDetailView.as_view(), name="admin-user-detail"),
