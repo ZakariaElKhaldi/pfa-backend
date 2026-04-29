@@ -5,8 +5,12 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin, IsAnalystOrAdmin
 
-from .models import ManipulationFlag, RetrainLog
-from .serializers import ManipulationFlagSerializer, RetrainLogSerializer
+from .models import ManipulationFlag, MarketMoodSnapshot, RetrainLog
+from .serializers import (
+    ManipulationFlagSerializer,
+    MarketMoodSnapshotSerializer,
+    RetrainLogSerializer,
+)
 
 
 class ManipulationFlagListView(generics.ListAPIView):
@@ -43,3 +47,16 @@ class RetrainLogListView(generics.ListAPIView):
     serializer_class = RetrainLogSerializer
     permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
     queryset = RetrainLog.objects.all()
+
+
+class MoodSnapshotListView(generics.ListAPIView):
+    """GET /api/intelligence/mood/?ticker=<symbol> — analyst+admin."""
+    serializer_class = MarketMoodSnapshotSerializer
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+
+    def get_queryset(self):
+        qs = MarketMoodSnapshot.objects.select_related("ticker").all()
+        symbol = self.request.query_params.get("ticker")
+        if symbol:
+            qs = qs.filter(ticker__symbol=symbol.upper())
+        return qs

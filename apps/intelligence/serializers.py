@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ManipulationFlag, RetrainLog
+from .models import ManipulationFlag, MarketMoodSnapshot, RetrainLog
 
 
 class ManipulationFlagSerializer(serializers.ModelSerializer):
@@ -36,5 +36,22 @@ class RetrainLogSerializer(serializers.ModelSerializer):
             "started_at",
             "completed_at",
             "status",
+        ]
+        read_only_fields = fields
+
+
+class MarketMoodSnapshotSerializer(serializers.ModelSerializer):
+    ticker_symbol = serializers.CharField(source="ticker.symbol", read_only=True)
+
+    class Meta:
+        model = MarketMoodSnapshot
+        fields = [
+            "id",
+            "ticker_symbol",
+            "dominant_mood",
+            "confidence",
+            "window_start",
+            "window_end",
+            "created_at",
         ]
         read_only_fields = fields
