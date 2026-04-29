@@ -211,6 +211,125 @@ class GlobalSignalExportView(APIView):
         return Response(data)
 
 
+class BulkExportView(APIView):
+    """GET /api/export/bulk/?symbols=AAPL,MSFT&include=signals,prices&format=csv|json"""
+
+    permission_classes = [IsAuthenticated]
+    content_negotiation_class = IgnoreClientContentNegotiation
+    renderer_classes = [JSONRenderer]
+
+    MAX_EXPORT_ROWS = 50_000
+
+    def get_permissions(self):
+        from apps.accounts.permissions import IsAnalystOrAdmin
+        return [IsAuthenticated(), IsAnalystOrAdmin()]
+
+    def get(self, request):
+        symbols_raw = request.query_params.get("symbols", "")
+        symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
+        include_raw = request.query_params.get("include", "signals")
+        includes = [s.strip() for s in include_raw.split(",")]
+        fmt = request.query_params.get("format", "json")
+
+        ticker_qs = Ticker.objects.all()
+        if symbols:
+            ticker_qs = ticker_qs.filter(symbol__in=symbols)
+        ticker_ids = list(ticker_qs.values_list("id", flat=True))
+        if not ticker_ids:
+            return Response({"signals": [], "prices": [], "posts": [], "alerts": []})
+
+        data: dict = {}
+        if "signals" in includes:
+            data["signals"] = [
+                {
+                    "symbol": s.ticker.symbol,
+                    "signal": s.signal,
+                    "sentiment": s.sentiment,
+                    "momentum": s.momentum,
+                    "consistency": s.consistency,
+                    "post_count": s.post_count,
+                    "created_at": s.created_at.isoformat(),
+                }
+                for s in (
+                    SignalSnapshot.objects
+                    .filter(ticker_id__in=ticker_ids)
+                    .select_related("ticker")
+                    .order_by("-created_at")[: self.MAX_EXPORT_ROWS]
+                )
+            ]
+        if "prices" in includes:
+            data["prices"] = [
+                {
+                    "symbol": p.ticker.symbol,
+                    "price": str(p.price),
+                    "volume": p.volume,
+                    "timestamp": p.timestamp.isoformat(),
+                }
+                for p in (
+                    PriceSnapshot.objects
+                    .filter(ticker_id__in=ticker_ids)
+                    .select_related("ticker")
+                    .order_by("-timestamp")[: self.MAX_EXPORT_ROWS]
+                )
+            ]
+        if "posts" in includes:
+            data["posts"] = [
+                {
+                    "symbol": p.ticker.symbol,
+                    "source": p.source,
+                    "sentiment_score": p.sentiment_score,
+                    "sentiment_label": p.sentiment_label,
+                    "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+                }
+                for p in (
+                    SocialPost.objects
+                    .filter(ticker_id__in=ticker_ids)
+                    .select_related("ticker")
+                    .order_by("-posted_at")[: self.MAX_EXPORT_ROWS]
+                )
+            ]
+        if "alerts" in includes:
+            data["alerts"] = [
+                {
+                    "symbol": a.ticker.symbol,
+                    "type": a.type,
+                    "resolved": a.resolved,
+                    "created_at": a.created_at.isoformat(),
+                }
+                for a in (
+                    AlertFlag.objects
+                    .filter(ticker_id__in=ticker_ids)
+                    .select_related("ticker")
+                    .order_by("-created_at")[: self.MAX_EXPORT_ROWS]
+                )
+            ]
+
+        if fmt == "csv":
+            return self._csv_response(data)
+        return Response(data)
+
+    def _csv_response(self, data):
+        def generate():
+            for section, rows in data.items():
+                if not rows:
+                    continue
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                yield f"# {section}\n"
+                writer.writeheader()
+                yield output.getvalue()
+                for row in rows:
+                    output = io.StringIO()
+                    writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                    writer.writerow(row)
+                    yield output.getvalue()
+                yield "\n"
+
+        response = StreamingHttpResponse(generate(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="bulk_export.csv"'
+        return response
+
+
 @method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
 class PortfolioExportView(APIView):
     permission_classes = [IsAuthenticated]
