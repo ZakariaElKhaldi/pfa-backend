@@ -58,3 +58,31 @@ def compute_top_movers(window: timedelta, limit: int, direction: str = "both") -
 
     movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
     return movers[:limit]
+
+
+def compute_sentiment_leaderboard(window: timedelta, limit: int) -> list[dict]:
+    """Tickers ranked by latest bullish_ratio inside window."""
+    end = timezone.now()
+    start = end - window
+
+    latest_per_ticker: dict[int, SignalSnapshot] = {}
+    qs = (
+        SignalSnapshot.objects
+        .filter(created_at__range=(start, end), bullish_ratio__isnull=False)
+        .select_related("ticker")
+        .order_by("created_at")
+    )
+    for s in qs:
+        latest_per_ticker[s.ticker_id] = s
+
+    rows = [
+        {
+            "ticker": s.ticker.symbol,
+            "bullish_ratio": s.bullish_ratio,
+            "post_count": s.post_count,
+            "sentiment_score": s.sentiment,
+        }
+        for s in latest_per_ticker.values()
+    ]
+    rows.sort(key=lambda r: r["bullish_ratio"], reverse=True)
+    return rows[:limit]
