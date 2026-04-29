@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin
+from apps.accounts.permissions import IsAdmin, IsAnalystOrAdmin
 from apps.tickers.models import Watchlist
 
 from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
@@ -88,7 +88,7 @@ class AlertResolveView(APIView):
 
 class DecisionLogListView(generics.ListAPIView):
     serializer_class = DecisionLogSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
 
     def get_queryset(self):
         qs = DecisionLog.objects.all()
@@ -100,7 +100,7 @@ class DecisionLogListView(generics.ListAPIView):
 
 class DecisionLogDetailView(generics.RetrieveAPIView):
     serializer_class = DecisionLogSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
     queryset = DecisionLog.objects.all()
 
 
