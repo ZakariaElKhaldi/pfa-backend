@@ -1,10 +1,12 @@
 """Pure functions powering analytics endpoints. No DRF imports here."""
+import math
 import statistics
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 
 from django.utils import timezone
 
+from apps.accounts.models import CustomUser
 from apps.market.models import PriceSnapshot
 from apps.signals.models import SignalSnapshot
 from apps.social.models import SocialPost
@@ -222,3 +224,120 @@ def compute_signal_heatmap(symbols: list[str], window: timedelta) -> dict:
             })
         rows.append({"ticker": ticker.symbol, "buckets": buckets})
     return {"rows": rows}
+
+
+def run_backtest(
+    *,
+    user: CustomUser,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    strategy: str,
+    params: dict,
+):
+    """Walk-forward backtest with `strategy='signal'` only (MVP)."""
+    from apps.analytics.models import BacktestRun
+
+    if start >= end:
+        raise ValueError("start must be before end")
+    if (end - start) > timedelta(days=365):
+        raise ValueError("window cannot exceed 365 days")
+    if strategy != "signal":
+        raise ValueError(f"strategy {strategy!r} not yet implemented")
+
+    try:
+        ticker = Ticker.objects.get(symbol=symbol.upper())
+    except Ticker.DoesNotExist:
+        raise ValueError(f"Unknown ticker: {symbol}")
+
+    signals = list(
+        SignalSnapshot.objects
+        .filter(ticker=ticker, created_at__range=(start, end))
+        .order_by("created_at")
+    )
+    prices = list(
+        PriceSnapshot.objects
+        .filter(ticker=ticker, timestamp__range=(start, end))
+        .order_by("timestamp")
+    )
+    if not signals or not prices:
+        return BacktestRun.objects.create(
+            user=user, ticker=ticker, strategy=strategy, params=params,
+            window_start=start, window_end=end,
+            trades=[], equity_curve=[],
+            win_rate=0.0, sharpe=0.0, max_drawdown=0.0, total_return=0.0,
+            status="ok",
+        )
+
+    starting_cash = 10_000.0
+    cash = starting_cash
+    shares = 0.0
+    trades: list[dict] = []
+    equity_curve: list[dict] = []
+    pos_open_price: float | None = None
+
+    price_idx = 0
+    for snap in signals:
+        while price_idx < len(prices) - 1 and prices[price_idx].timestamp < snap.created_at:
+            price_idx += 1
+        price_now = float(prices[price_idx].price)
+
+        if snap.signal == "BUY" and shares == 0:
+            shares = cash / price_now
+            cash = 0
+            pos_open_price = price_now
+            trades.append({
+                "ts": snap.created_at.isoformat(), "side": "buy",
+                "price": price_now, "signal": snap.signal,
+            })
+        elif snap.signal in ("SELL", "HOLD") and shares > 0:
+            cash = shares * price_now
+            trades.append({
+                "ts": snap.created_at.isoformat(), "side": "sell",
+                "price": price_now, "signal": snap.signal,
+                "pnl": (price_now - pos_open_price) / pos_open_price if pos_open_price else 0.0,
+            })
+            shares = 0
+            pos_open_price = None
+
+        equity = cash + shares * price_now
+        equity_curve.append({"ts": snap.created_at.isoformat(), "equity": round(equity, 4)})
+
+    final_equity = cash + shares * float(prices[-1].price)
+    total_return = (final_equity - starting_cash) / starting_cash
+
+    closed_trades = [t for t in trades if t["side"] == "sell"]
+    wins = [t for t in closed_trades if t.get("pnl", 0) > 0]
+    win_rate = (len(wins) / len(closed_trades)) if closed_trades else 0.0
+
+    if len(equity_curve) > 1:
+        rets = [
+            (equity_curve[i]["equity"] - equity_curve[i - 1]["equity"]) / equity_curve[i - 1]["equity"]
+            for i in range(1, len(equity_curve))
+            if equity_curve[i - 1]["equity"]
+        ]
+        mean_r = sum(rets) / len(rets) if rets else 0.0
+        var = sum((r - mean_r) ** 2 for r in rets) / len(rets) if rets else 0.0
+        std_r = math.sqrt(var)
+        sharpe = (mean_r / std_r * math.sqrt(252)) if std_r > 0 else 0.0
+    else:
+        sharpe = 0.0
+
+    peak = -math.inf
+    max_dd = 0.0
+    for point in equity_curve:
+        peak = max(peak, point["equity"])
+        if peak > 0:
+            dd = (point["equity"] - peak) / peak
+            max_dd = min(max_dd, dd)
+
+    return BacktestRun.objects.create(
+        user=user, ticker=ticker, strategy=strategy, params=params,
+        window_start=start, window_end=end,
+        trades=trades, equity_curve=equity_curve,
+        win_rate=round(win_rate, 6),
+        sharpe=round(sharpe, 6),
+        max_drawdown=round(max_dd, 6),
+        total_return=round(total_return, 6),
+        status="ok",
+    )
