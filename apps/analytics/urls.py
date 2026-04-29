@@ -4,6 +4,7 @@ from .views import (
     CorrelationView,
     SectorRollupView,
     SentimentLeaderboardView,
+    SignalHeatmapView,
     TopMoversView,
 )
 
@@ -12,4 +13,5 @@ urlpatterns = [
     path("sentiment-leaderboard/", SentimentLeaderboardView.as_view(), name="analytics-sentiment-leaderboard"),
     path("correlation/", CorrelationView.as_view(), name="analytics-correlation"),
     path("sector-rollup/", SectorRollupView.as_view(), name="analytics-sector-rollup"),
+    path("signal-heatmap/", SignalHeatmapView.as_view(), name="analytics-signal-heatmap"),
 ]

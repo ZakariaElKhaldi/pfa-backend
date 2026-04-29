@@ -177,3 +177,48 @@ def compute_sector_rollup(window: timedelta) -> list[dict]:
         })
     rows.sort(key=lambda r: r["avg_signal"], reverse=True)
     return rows
+
+
+def compute_signal_heatmap(symbols: list[str], window: timedelta) -> dict:
+    """For each ticker, list (signal_index, price_change_pct) bucketed by snapshot."""
+    if not symbols:
+        raise ValueError("symbols query param required")
+
+    end = timezone.now()
+    start = end - window
+    rows = []
+    for symbol in symbols:
+        try:
+            ticker = Ticker.objects.get(symbol=symbol.upper())
+        except Ticker.DoesNotExist:
+            raise ValueError(f"Unknown ticker: {symbol}")
+
+        signals = list(
+            SignalSnapshot.objects.filter(
+                ticker=ticker, created_at__range=(start, end),
+                normalized_index__isnull=False,
+            ).order_by("created_at")
+        )
+        prices = list(
+            PriceSnapshot.objects.filter(
+                ticker=ticker, timestamp__range=(start, end),
+            ).order_by("timestamp")
+        )
+        if not prices:
+            rows.append({"ticker": ticker.symbol, "buckets": []})
+            continue
+        first_price = float(prices[0].price)
+        buckets = []
+        price_iter = iter(prices)
+        next_price = next(price_iter, None)
+        for snap in signals:
+            while next_price and next_price.timestamp < snap.created_at:
+                next_price = next(price_iter, None)
+            ref_price = float(next_price.price) if next_price else float(prices[-1].price)
+            buckets.append({
+                "ts": snap.created_at.isoformat(),
+                "signal": snap.normalized_index,
+                "price_change": round((ref_price - first_price) / first_price, 6) if first_price else 0.0,
+            })
+        rows.append({"ticker": ticker.symbol, "buckets": buckets})
+    return {"rows": rows}
