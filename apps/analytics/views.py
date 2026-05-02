@@ -1,3 +1,4 @@
+from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -5,6 +6,9 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsAnalystOrAdmin
 
 from . import services
+from .models import BacktestRun
+from .serializers import BacktestRequestSerializer, BacktestRunSerializer
+from .throttles import BacktestThrottle
 
 
 class TopMoversView(APIView):
@@ -84,3 +88,41 @@ class SignalHeatmapView(APIView):
             return Response(services.compute_signal_heatmap(symbols, window))
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
+
+
+class BacktestRunListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+    serializer_class = BacktestRunSerializer
+
+    def get_queryset(self):
+        return BacktestRun.objects.filter(user=self.request.user).select_related("ticker")
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [BacktestThrottle()]
+        return []
+
+    def create(self, request, *args, **kwargs):
+        serializer = BacktestRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+        try:
+            run = services.run_backtest(
+                user=request.user,
+                symbol=serializer.validated_data["symbol"],
+                start=serializer.validated_data["start"],
+                end=serializer.validated_data["end"],
+                strategy=serializer.validated_data["strategy"],
+                params=serializer.validated_data.get("params", {}),
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response(BacktestRunSerializer(run).data, status=201)
+
+
+class BacktestRunDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+    serializer_class = BacktestRunSerializer
+
+    def get_queryset(self):
+        return BacktestRun.objects.filter(user=self.request.user)

@@ -82,7 +82,7 @@ backend/
 │   ├── sentiment/      # Sentiment scoring pipeline
 │   ├── signals/        # SignalEngine, SignalSnapshot, SignalAccuracy, DecisionLog, Alerts
 │   ├── market/         # Alpaca stream, PriceSnapshot, indicators
-│   ├── portfolio/      # Portfolio, Position, Trade (user-scoped, atomic)
+│   ├── portfolio/      # Portfolio, Position, Trade (user-scoped, atomic)V
 │   ├── pipeline/       # Orchestration of fetch → signal → alert
 │   ├── events/         # Redis pub/sub bus + event type constants
 │   ├── export/         # Data export (CSV/JSON streaming)
