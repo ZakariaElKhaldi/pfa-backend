@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
+from asgiref.sync import async_to_sync
 from django.utils import timezone
 
 from apps.market.alpaca_stream import AlpacaStreamManager
@@ -27,7 +28,7 @@ def test_handle_bar_stores_price_snapshot(mock_push, ticker):
     bar.volume = 5000000
     bar.timestamp = timezone.now()
 
-    manager.handle_bar(bar)
+    async_to_sync(manager.handle_bar)(bar)
 
     snap = PriceSnapshot.objects.get(ticker=ticker)
     assert snap.price == Decimal("155.50")
@@ -47,7 +48,7 @@ def test_handle_bar_ignores_untracked_ticker():
     bar.timestamp = timezone.now()
 
     # Should not raise
-    manager.handle_bar(bar)
+    async_to_sync(manager.handle_bar)(bar)
     assert PriceSnapshot.objects.count() == 0
 
 
@@ -73,7 +74,7 @@ def test_handle_bar_stores_ohlc_fields(mock_push, ticker):
     bar.volume = 5000000
     bar.timestamp = timezone.now()
 
-    manager.handle_bar(bar)
+    async_to_sync(manager.handle_bar)(bar)
 
     snap = PriceSnapshot.objects.get(ticker=ticker)
     assert snap.price == Decimal("155.50")
@@ -95,7 +96,7 @@ def test_handle_bar_pushes_ohlc_in_websocket(mock_push, ticker):
     bar.volume = 5000000
     bar.timestamp = timezone.now()
 
-    manager.handle_bar(bar)
+    async_to_sync(manager.handle_bar)(bar)
 
     payload = mock_push.call_args[0][1]
     assert payload["open"] == "150.00"

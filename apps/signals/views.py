@@ -121,6 +121,11 @@ class RecentSignalsView(generics.ListAPIView):
             limit = max(1, min(int(self.request.query_params.get("limit", 20)), 100))
         except (ValueError, TypeError):
             limit = 20
+        if (
+            self.request.query_params.get("all") == "true"
+            and getattr(self.request.user, "role", None) == "admin"
+        ):
+            return SignalSnapshot.objects.order_by("-created_at")[:limit]
         watchlist_tickers = Watchlist.objects.filter(
             user=self.request.user
         ).values_list("ticker_id", flat=True)

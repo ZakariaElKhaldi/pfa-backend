@@ -78,7 +78,7 @@ def test_signal_history_endpoint(client, signal_snapshot):
     resp = client.get("/api/tickers/AAPL/signal/history/")
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data["results"]) == 2
+    assert len(data) == 2
 
 
 @pytest.mark.django_db

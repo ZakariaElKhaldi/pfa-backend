@@ -2,8 +2,9 @@ import logging
 import time
 
 from asgiref.sync import sync_to_async
-from channels.layers import get_channel_layer
 from decouple import config
+
+from apps.market.utils import push_market_update
 
 logger = logging.getLogger(__name__)
 
@@ -39,23 +40,18 @@ class AlpacaStreamManager:
                 timestamp=bar.timestamp,
             )
 
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                await channel_layer.group_send(
-                    f"market_{bar.symbol}",
-                    {
-                        "type": "market.update",
-                        "data": {
-                            "type": "price",
-                            "open": str(bar.open),
-                            "high": str(bar.high),
-                            "low": str(bar.low),
-                            "price": str(bar.close),
-                            "volume": bar.volume,
-                            "timestamp": bar.timestamp.isoformat(),
-                        },
-                    },
-                )
+            await sync_to_async(push_market_update)(
+                bar.symbol,
+                {
+                    "type": "price",
+                    "open": str(bar.open),
+                    "high": str(bar.high),
+                    "low": str(bar.low),
+                    "price": str(bar.close),
+                    "volume": bar.volume,
+                    "timestamp": bar.timestamp.isoformat(),
+                },
+            )
 
             from apps.events.bus import publish
             from apps.events.types import PRICE_UPDATED

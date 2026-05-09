@@ -29,6 +29,7 @@ CACHES = {
 RATELIMIT_ENABLE = False
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+TESTING = True
 
 # Allow frontend dev servers to call the test backend without CORS issues.
 # For local development only.

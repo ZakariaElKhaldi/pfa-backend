@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
+from asgiref.sync import async_to_sync
 from apps.market.alpaca_stream import AlpacaStreamManager
 from apps.tickers.models import Ticker
 from apps.market.models import PriceSnapshot
@@ -23,7 +24,7 @@ class TestAlpacaStreamLogic:
         mock_bar.timestamp = datetime.now(tz=timezone.utc)
         
         manager = AlpacaStreamManager()
-        manager.handle_bar(mock_bar)
+        async_to_sync(manager.handle_bar)(mock_bar)
         
         # Verify database record
         snapshot = PriceSnapshot.objects.get(ticker=ticker)

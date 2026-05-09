@@ -5,9 +5,18 @@ from channels.testing import WebsocketCommunicator
 from config.asgi import application
 
 
+def market_communicator(path: str) -> WebsocketCommunicator:
+    return WebsocketCommunicator(
+        application,
+        path,
+        headers=[(b"origin", b"http://testserver")],
+    )
+
+
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_consumer_connects_and_receives_message():
-    communicator = WebsocketCommunicator(application, "/ws/market/AAPL/")
+    communicator = market_communicator("/ws/market/AAPL/")
     connected, _ = await communicator.connect()
     assert connected
 
@@ -26,8 +35,9 @@ async def test_consumer_connects_and_receives_message():
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_consumer_disconnects_cleanly():
-    communicator = WebsocketCommunicator(application, "/ws/market/TSLA/")
+    communicator = market_communicator("/ws/market/TSLA/")
     connected, _ = await communicator.connect()
     assert connected
     await communicator.disconnect()

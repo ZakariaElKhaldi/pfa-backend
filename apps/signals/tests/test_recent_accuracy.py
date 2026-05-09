@@ -57,6 +57,23 @@ def test_recent_signals_limit(auth_client, user, ticker):
 
 
 @pytest.mark.django_db
+def test_recent_signals_admin_all_returns_platform_signals(admin_client, ticker):
+    """Admin dashboard can request platform-wide recent signals."""
+    SignalSnapshot.objects.create(
+        ticker=ticker, signal="SELL", sentiment=-0.6, momentum=-0.4,
+        consistency=0.8, post_count=10, bullish_ratio=0.2,
+        normalized_index=-0.5, time_decay_score=-0.7,
+        source_weighted_score=-0.6, prediction_method="rule_based",
+        prediction_confidence=0.75, feature_importances={},
+    )
+    resp = admin_client.get("/api/signals/recent/?limit=8&all=true")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["signal"] == "SELL"
+
+
+@pytest.mark.django_db
 def test_global_accuracy_no_data(auth_client):
     """Returns null overall_pct when no evaluated signals."""
     resp = auth_client.get("/api/signals/accuracy/global/")
