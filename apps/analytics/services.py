@@ -242,7 +242,7 @@ def run_backtest(
         raise ValueError("start must be before end")
     if (end - start) > timedelta(days=365):
         raise ValueError("window cannot exceed 365 days")
-    if strategy != "signal":
+    if strategy not in ("signal", "sentiment_threshold"):
         raise ValueError(f"strategy {strategy!r} not yet implemented")
 
     try:
@@ -281,8 +281,20 @@ def run_backtest(
         while price_idx < len(prices) - 1 and prices[price_idx].timestamp < snap.created_at:
             price_idx += 1
         price_now = float(prices[price_idx].price)
+        bullish_ratio = snap.bullish_ratio or 0.0
 
-        if snap.signal == "BUY" and shares == 0:
+        if strategy == "signal":
+            buy_condition = (snap.signal == "BUY")
+            sell_condition = (snap.signal in ("SELL", "HOLD"))
+        elif strategy == "sentiment_threshold":
+            threshold = float(params.get("threshold", 0.6))
+            lower_bound = 1.0 - threshold
+            buy_condition = (bullish_ratio >= threshold)
+            sell_condition = (bullish_ratio <= lower_bound)
+        else:
+            buy_condition = sell_condition = False
+
+        if buy_condition and shares == 0:
             shares = cash / price_now
             cash = 0
             pos_open_price = price_now
@@ -290,7 +302,7 @@ def run_backtest(
                 "ts": snap.created_at.isoformat(), "side": "buy",
                 "price": price_now, "signal": snap.signal,
             })
-        elif snap.signal in ("SELL", "HOLD") and shares > 0:
+        elif sell_condition and shares > 0:
             cash = shares * price_now
             trades.append({
                 "ts": snap.created_at.isoformat(), "side": "sell",
