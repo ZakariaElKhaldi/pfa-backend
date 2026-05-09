@@ -1,0 +1,80 @@
+"""
+TimesFM Volume Forecasting Service.
+
+Uses Google's TimesFM 1.0 (200M) foundation model to generate
+zero-shot 30-day volume forecasts from historical daily volume data.
+
+The model is lazily loaded as a process-level singleton behind a
+threading lock so concurrent Django requests don't race on init.
+"""
+
+import logging
+import threading
+
+import numpy as np
+import timesfm
+
+logger = logging.getLogger(__name__)
+
+_tfm_model = None
+_tfm_lock = threading.Lock()
+
+
+def get_timesfm_model() -> timesfm.TimesFm:
+    """Return the TimesFM model singleton (lazy, thread-safe)."""
+    global _tfm_model
+    if _tfm_model is not None:
+        return _tfm_model
+
+    with _tfm_lock:
+        # Double-checked locking: another thread may have initialized
+        # while we were waiting for the lock.
+        if _tfm_model is not None:
+            return _tfm_model
+
+        logger.info("Initializing TimesFM model from HuggingFace…")
+        _tfm_model = timesfm.TimesFm(
+            hparams=timesfm.TimesFmHparams(
+                context_len=512,
+                horizon_len=128,     # max horizon the model supports
+                input_patch_len=32,
+                output_patch_len=128,
+                num_layers=20,
+                model_dims=1280,
+                use_positional_embedding=False,
+            ),
+            checkpoint=timesfm.TimesFmCheckpoint(
+                huggingface_repo_id="google/timesfm-1.0-200m-pytorch",
+            ),
+        )
+        logger.info("TimesFM model ready.")
+        return _tfm_model
+
+
+def forecast_volume(
+    volume_history: list[float],
+    horizon: int = 30,
+) -> list[float]:
+    """
+    Given daily volume history, return the next *horizon* days forecast.
+
+    Args:
+        volume_history: Ordered list of daily volumes (oldest → newest).
+        horizon: Number of future days to predict (max 128).
+
+    Returns:
+        List of predicted daily volumes (non-negative).
+    """
+    if len(volume_history) < 10:
+        raise ValueError("Need at least 10 historical data points.")
+
+    model = get_timesfm_model()
+
+    # TimesFM expects list-of-arrays; freq=0 → high-frequency (daily).
+    input_data = np.array(volume_history, dtype=np.float32)
+    point_forecast, _ = model.forecast([input_data], freq=[0])
+
+    preds = point_forecast[0, :horizon].tolist()
+
+    # Volume can never be negative.
+    return [max(0.0, p) for p in preds]

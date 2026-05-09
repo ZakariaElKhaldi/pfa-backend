@@ -10,6 +10,16 @@ from .models import BacktestRun
 from .serializers import BacktestRequestSerializer, BacktestRunSerializer
 from .throttles import BacktestThrottle
 
+import logging
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
+from apps.market.models import PriceSnapshot
+from . import timesfm_service
+
+logger = logging.getLogger(__name__)
+
 
 class TopMoversView(APIView):
     permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
@@ -126,3 +136,46 @@ class BacktestRunDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return BacktestRun.objects.filter(user=self.request.user)
+
+
+class VolumeForecastView(APIView):
+    """30-day volume forecast powered by Google TimesFM."""
+
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+
+    @method_decorator(cache_page(60 * 60 * 12))  # 12-hour cache per ticker
+    def get(self, request):
+        ticker = request.query_params.get("ticker", "").upper()
+        if not ticker:
+            return Response({"detail": "ticker parameter is required"}, status=400)
+
+        # Fetch latest 200 volume records directly in SQL (desc → reverse)
+        volume_qs = (
+            PriceSnapshot.objects
+            .filter(ticker__symbol=ticker)
+            .order_by("-timestamp")
+            .values_list("volume", flat=True)[:200]
+        )
+        # Reverse to oldest-first for the model
+        volume_history = list(reversed(list(volume_qs)))
+
+        if len(volume_history) < 10:
+            return Response(
+                {"detail": "Not enough historical volume data for forecasting."},
+                status=400,
+            )
+
+        try:
+            forecasts = timesfm_service.forecast_volume(volume_history, horizon=30)
+        except Exception:
+            logger.exception("TimesFM inference failed for %s", ticker)
+            return Response(
+                {"detail": "Model inference failed. Please try again later."},
+                status=500,
+            )
+
+        return Response({
+            "ticker": ticker,
+            "horizon": len(forecasts),
+            "forecast": forecasts,
+        })
