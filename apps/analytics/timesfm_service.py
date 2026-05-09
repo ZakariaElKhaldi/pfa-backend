@@ -51,30 +51,42 @@ def get_timesfm_model() -> timesfm.TimesFm:
         return _tfm_model
 
 
-def forecast_volume(
-    volume_history: list[float],
+def forecast_series(
+    history: list[float],
     horizon: int = 30,
+    clip_zero: bool = False,
 ) -> list[float]:
     """
-    Given daily volume history, return the next *horizon* days forecast.
+    Given daily history, return the next *horizon* days forecast.
 
     Args:
-        volume_history: Ordered list of daily volumes (oldest → newest).
+        history: Ordered list of daily values (oldest → newest).
         horizon: Number of future days to predict (max 128).
+        clip_zero: If True, clips negative predictions to 0.0.
 
     Returns:
-        List of predicted daily volumes (non-negative).
+        List of predicted daily values.
     """
-    if len(volume_history) < 10:
+    if len(history) < 10:
         raise ValueError("Need at least 10 historical data points.")
 
     model = get_timesfm_model()
 
     # TimesFM expects list-of-arrays; freq=0 → high-frequency (daily).
-    input_data = np.array(volume_history, dtype=np.float32)
+    input_data = np.array(history, dtype=np.float32)
     point_forecast, _ = model.forecast([input_data], freq=[0])
 
     preds = point_forecast[0, :horizon].tolist()
 
-    # Volume can never be negative.
-    return [max(0.0, p) for p in preds]
+    if clip_zero:
+        return [max(0.0, p) for p in preds]
+    return preds
+
+def forecast_volume(
+    volume_history: list[float],
+    horizon: int = 30,
+) -> list[float]:
+    """
+    Wrapper around forecast_series that enforces non-negative volume.
+    """
+    return forecast_series(volume_history, horizon, clip_zero=True)

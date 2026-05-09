@@ -9,11 +9,13 @@ from .views import (
     SignalHeatmapView,
     TopMoversView,
     VolumeForecastView,
+    BreadthForecastView,
 )
 
 urlpatterns = [
     path("top-movers/", TopMoversView.as_view(), name="analytics-top-movers"),
     path("forecast/volume/", VolumeForecastView.as_view(), name="analytics-forecast-volume"),
+    path("forecast/breadth/", BreadthForecastView.as_view(), name="analytics-forecast-breadth"),
 
     path("sentiment-leaderboard/", SentimentLeaderboardView.as_view(), name="analytics-sentiment-leaderboard"),
     path("correlation/", CorrelationView.as_view(), name="analytics-correlation"),

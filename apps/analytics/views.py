@@ -14,8 +14,10 @@ import logging
 
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from collections import defaultdict
 
 from apps.market.models import PriceSnapshot
+from apps.signals.models import SignalSnapshot
 from . import timesfm_service
 
 logger = logging.getLogger(__name__)
@@ -179,3 +181,57 @@ class VolumeForecastView(APIView):
             "horizon": len(forecasts),
             "forecast": forecasts,
         })
+
+
+class BreadthForecastView(APIView):
+    """30-day market breadth (A/D line) forecast powered by Google TimesFM."""
+
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+
+    @method_decorator(cache_page(60 * 60 * 12))  # 12-hour cache
+    def get(self, request):
+        # We need historical sequence. Fetch recent signals to build a decent breadth line
+        signals = SignalSnapshot.objects.all().order_by('-created_at')[:3000]
+        
+        # Group by day
+        by_day = defaultdict(lambda: {"BUY": 0, "SELL": 0})
+        for s in signals:
+            day_str = s.created_at.strftime("%Y-%m-%d")
+            if s.signal == "BUY":
+                by_day[day_str]["BUY"] += 1
+            elif s.signal == "SELL":
+                by_day[day_str]["SELL"] += 1
+                
+        if len(by_day) < 10:
+            return Response(
+                {"detail": "Not enough historical breadth data for forecasting."},
+                status=400,
+            )
+            
+        # Sort by date
+        sorted_days = sorted(by_day.items())
+        
+        # Build cumulative breadth series
+        cumulative = 0
+        breadth_history = []
+        for date_str, counts in sorted_days:
+            net = counts["BUY"] - counts["SELL"]
+            cumulative += net
+            breadth_history.append(cumulative)
+            
+        try:
+            # We can reuse the timesfm_service which just expects a sequence of numbers
+            forecasts = timesfm_service.forecast_series(breadth_history, horizon=30, clip_zero=False)
+        except Exception:
+            logger.exception("TimesFM inference failed for Market Breadth")
+            return Response(
+                {"detail": "Model inference failed. Please try again later."},
+                status=500,
+            )
+
+        return Response({
+            "horizon": len(forecasts),
+            "forecast": forecasts,
+            "last_historical_value": breadth_history[-1],
+        })
+
