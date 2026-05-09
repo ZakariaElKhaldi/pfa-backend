@@ -38,6 +38,15 @@ class CrowdSignalRegisterSerializer(BaseRegisterSerializer):
         data["username"] = email.split("@")[0]
         return data
 
+    def validate_email(self, email):
+        """
+        Ensure email is unique (case-insensitive) and provide a friendly
+        validation error rather than raising an IntegrityError during save.
+        """
+        if CustomUser.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("A user with that email already exists.")
+        return email
+
     def save(self, request):
         from django.utils.crypto import get_random_string
         user = super().save(request)

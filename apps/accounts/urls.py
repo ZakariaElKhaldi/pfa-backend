@@ -14,7 +14,9 @@ from .views import (
     AdminUserDetailView,
     AdminUserListView,
     GitHubLogin,
+    GitHubOAuthRedirectView,
     GoogleLogin,
+    GoogleOAuthRedirectView,
     UserPreferenceView,
 )
 
@@ -25,7 +27,9 @@ urlpatterns = [
     path("token/refresh/", get_refresh_view().as_view(), name="token-refresh"),
     path("registration/", include("dj_rest_auth.registration.urls")),
     path("github/", GitHubLogin.as_view(), name="github-login"),
+    path("github/redirect/", GitHubOAuthRedirectView.as_view(), name="github-oauth-redirect"),
     path("google/", GoogleLogin.as_view(), name="google-login"),
+    path("google/redirect/", GoogleOAuthRedirectView.as_view(), name="google-oauth-redirect"),
     # Password
     path("password/change/", PasswordChangeView.as_view(), name="password-change"),
     path("password/reset/", PasswordResetView.as_view(), name="password-reset"),

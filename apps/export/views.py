@@ -166,18 +166,22 @@ class GlobalSignalExportView(APIView):
             ticker_id__in=watchlist_tickers
         ).select_related("ticker").order_by("-created_at")
 
-        from_dt = request.query_params.get("from")
-        to_dt = request.query_params.get("to")
-        if from_dt:
-            try:
-                qs = qs.filter(created_at__gte=from_dt)
-            except Exception:
-                pass
-        if to_dt:
-            try:
-                qs = qs.filter(created_at__lte=to_dt)
-            except Exception:
-                pass
+        from_dt_raw = request.query_params.get("from")
+        to_dt_raw = request.query_params.get("to")
+        if from_dt_raw:
+            from_dt = parse_datetime(from_dt_raw)
+            if from_dt is None:
+                return Response({"detail": "Invalid 'from' date format. Use ISO 8601."}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(from_dt):
+                from_dt = timezone.make_aware(from_dt, timezone.utc)
+            qs = qs.filter(created_at__gte=from_dt)
+        if to_dt_raw:
+            to_dt = parse_datetime(to_dt_raw)
+            if to_dt is None:
+                return Response({"detail": "Invalid 'to' date format. Use ISO 8601."}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(to_dt):
+                to_dt = timezone.make_aware(to_dt, timezone.utc)
+            qs = qs.filter(created_at__lte=to_dt)
 
         if fmt == "csv":
             response = HttpResponse(content_type="text/csv")
@@ -351,18 +355,22 @@ class PortfolioExportView(APIView):
 
         qs = Trade.objects.filter(portfolio=portfolio).select_related("ticker").order_by("-executed_at")
 
-        from_dt = request.query_params.get("from")
-        to_dt = request.query_params.get("to")
-        if from_dt:
-            try:
-                qs = qs.filter(executed_at__gte=from_dt)
-            except Exception:
-                pass
-        if to_dt:
-            try:
-                qs = qs.filter(executed_at__lte=to_dt)
-            except Exception:
-                pass
+        from_dt_raw = request.query_params.get("from")
+        to_dt_raw = request.query_params.get("to")
+        if from_dt_raw:
+            from_dt = parse_datetime(from_dt_raw)
+            if from_dt is None:
+                return Response({"detail": "Invalid 'from' date format. Use ISO 8601."}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(from_dt):
+                from_dt = timezone.make_aware(from_dt, timezone.utc)
+            qs = qs.filter(executed_at__gte=from_dt)
+        if to_dt_raw:
+            to_dt = parse_datetime(to_dt_raw)
+            if to_dt is None:
+                return Response({"detail": "Invalid 'to' date format. Use ISO 8601."}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(to_dt):
+                to_dt = timezone.make_aware(to_dt, timezone.utc)
+            qs = qs.filter(executed_at__lte=to_dt)
 
         if fmt == "csv":
             response = HttpResponse(content_type="text/csv")

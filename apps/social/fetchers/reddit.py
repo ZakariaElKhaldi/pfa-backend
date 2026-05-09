@@ -9,7 +9,16 @@ from .base import BaseFetcher
 
 logger = logging.getLogger(__name__)
 
-SUBREDDITS = ["wallstreetbets", "stocks", "investing", "StockMarket"]
+SUBREDDITS = [
+    "wallstreetbets",
+    "stocks",
+    "investing",
+    "StockMarket",
+    "options",
+    "SecurityAnalysis",
+    "algotrading",
+    "dividends",
+]
 RSS_URL = "https://www.reddit.com/r/{subreddit}/search.rss?q={symbol}&sort=new&restrict_sr=1"
 
 
