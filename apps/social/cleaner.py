@@ -1,5 +1,6 @@
 import html
 import re
+from html.parser import HTMLParser
 
 # Financial emoji to sentiment token mapping (Paper 3)
 EMOJI_SENTIMENT_MAP = {
@@ -34,9 +35,32 @@ FINANCIAL_ABBREVIATIONS = {
 }
 
 
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(data)
+
+    def get_text(self) -> str:
+        return " ".join(self._parts)
+
+
+def _strip_html(text: str) -> str:
+    """Extract visible text from HTML, falling back to the original if parsing yields nothing."""
+    extractor = _HTMLTextExtractor()
+    try:
+        extractor.feed(html.unescape(text))
+        result = extractor.get_text().strip()
+        return result if result else text
+    except Exception:
+        return text
+
+
 def clean_text(text: str) -> str:
-    # Decode HTML entities
-    text = html.unescape(text)
+    # Strip HTML tags and decode entities first
+    text = _strip_html(text)
 
     # Remove URLs (before cashtag handling)
     text = re.sub(r"https?://\S+", "", text)

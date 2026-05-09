@@ -92,21 +92,24 @@ DATABASES = {
     }
 }
 
+_redis_host = config("REDIS_HOST", default="")
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(config("REDIS_HOST", default="redis"), 6379)],
+            "hosts": [(_redis_host, 6379)],
         },
-    },
+    }
+    if _redis_host
+    else {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
 }
 
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://redis:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
-
-from datetime import timedelta  # noqa: E402
 
 CELERY_BEAT_SCHEDULE = {
     "pipeline-run-every-15min": {
@@ -132,8 +135,6 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 1
 
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 50,
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
@@ -164,6 +165,7 @@ REST_AUTH = {
     "JWT_AUTH_HTTPONLY": False,
     "TOKEN_MODEL": None,
     "REGISTER_SERIALIZER": "apps.accounts.serializers.CrowdSignalRegisterSerializer",
+    "USER_DETAILS_SERIALIZER": "apps.accounts.serializers.UserSerializer",
 }
 
 # ---------- allauth ----------
@@ -202,14 +204,20 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5174")
 SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalSocialAdapter"
 ACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalAccountAdapter"
 
 # ---------- Rate Limiting ----------
 RATELIMIT_USE_CACHE = "default"
+_redis_cache_url = config("REDIS_CACHE_URL", default="")
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": config("CELERY_BROKER_URL", default="redis://redis:6379/0"),
+        "LOCATION": _redis_cache_url,
+    }
+    if _redis_cache_url
+    else {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }

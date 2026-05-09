@@ -16,6 +16,8 @@ from .serializers import (
 
 
 class TickerSignalView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, symbol):
         snap = SignalSnapshot.objects.filter(ticker__symbol=symbol).order_by("-created_at").first()
         if snap is None:
@@ -25,6 +27,7 @@ class TickerSignalView(APIView):
 
 class TickerSignalHistoryView(generics.ListAPIView):
     serializer_class = SignalSnapshotSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return SignalSnapshot.objects.filter(
@@ -33,6 +36,8 @@ class TickerSignalHistoryView(generics.ListAPIView):
 
 
 class TickerSignalExplainView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, symbol):
         snap = SignalSnapshot.objects.filter(ticker__symbol=symbol).order_by("-created_at").first()
         if snap is None:
@@ -59,6 +64,7 @@ class TickerSignalExplainView(APIView):
 
 class TickerSignalAccuracyView(generics.ListAPIView):
     serializer_class = SignalAccuracySerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return SignalAccuracy.objects.filter(
@@ -68,6 +74,7 @@ class TickerSignalAccuracyView(generics.ListAPIView):
 
 class AlertListView(generics.ListAPIView):
     serializer_class = AlertFlagSerializer
+    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
 
     def get_queryset(self):
         return AlertFlag.objects.filter(resolved=False).order_by("-created_at")
@@ -107,9 +114,13 @@ class DecisionLogDetailView(generics.RetrieveAPIView):
 class RecentSignalsView(generics.ListAPIView):
     serializer_class = SignalSnapshotSerializer
     pagination_class = None
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        limit = min(int(self.request.query_params.get("limit", 20)), 100)
+        try:
+            limit = max(1, min(int(self.request.query_params.get("limit", 20)), 100))
+        except (ValueError, TypeError):
+            limit = 20
         watchlist_tickers = Watchlist.objects.filter(
             user=self.request.user
         ).values_list("ticker_id", flat=True)
@@ -123,6 +134,8 @@ class RecentSignalsView(generics.ListAPIView):
 
 
 class GlobalAccuracyView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         records = SignalAccuracy.objects.filter(accuracy_24h__isnull=False)
         total = records.count()
