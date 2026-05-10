@@ -80,10 +80,10 @@ class AlpacaNewsStreamManager:
                 continue
 
             post, created = await sync_to_async(SocialPost.objects.get_or_create)(
+                ticker=ticker,
                 source=self.SOURCE,
                 external_id=external_id,
                 defaults={
-                    "ticker": ticker,
                     "title": title or None,
                     "url": url or None,
                     "content": content,

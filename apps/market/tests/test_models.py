@@ -53,3 +53,4 @@ def test_price_snapshot_backward_compatible(ticker):
     snap.refresh_from_db()
     assert float(snap.price) == 200.5
     assert snap.volume == 100000
+    assert snap.source == PriceSnapshot.SOURCE_ALPACA_STREAM

@@ -128,7 +128,9 @@ def compute_correlation_matrix(symbols: list[str], window: timedelta, metric: st
             raise ValueError(f"Unknown ticker: {symbol}")
         if metric == "price":
             qs = PriceSnapshot.objects.filter(
-                ticker=ticker, timestamp__range=(start, end)
+                ticker=ticker,
+                timestamp__range=(start, end),
+                source__in=PriceSnapshot.LIVE_SOURCES,
             ).order_by("timestamp")
             series_per_symbol[ticker.symbol] = [float(p.price) for p in qs]
         else:
@@ -204,6 +206,7 @@ def compute_signal_heatmap(symbols: list[str], window: timedelta) -> dict:
         prices = list(
             PriceSnapshot.objects.filter(
                 ticker=ticker, timestamp__range=(start, end),
+                source__in=PriceSnapshot.LIVE_SOURCES,
             ).order_by("timestamp")
         )
         if not prices:
@@ -257,7 +260,11 @@ def run_backtest(
     )
     prices = list(
         PriceSnapshot.objects
-        .filter(ticker=ticker, timestamp__range=(start, end))
+        .filter(
+            ticker=ticker,
+            timestamp__range=(start, end),
+            source__in=PriceSnapshot.LIVE_SOURCES,
+        )
         .order_by("timestamp")
     )
     if not signals or not prices:

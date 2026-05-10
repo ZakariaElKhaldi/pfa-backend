@@ -35,7 +35,10 @@ def build_feature_vector(ticker_symbol: str, window_minutes: int = 30) -> dict |
     features = {}
 
     # --- Technical features ---
-    price_qs = PriceSnapshot.objects.filter(ticker=ticker).order_by("timestamp")
+    price_qs = PriceSnapshot.objects.filter(
+        ticker=ticker,
+        source__in=PriceSnapshot.LIVE_SOURCES,
+    ).order_by("timestamp")
     prices_list = list(price_qs.values_list("price", flat=True))
     close_prices = [float(p) for p in prices_list]
 

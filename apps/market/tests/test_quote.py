@@ -51,3 +51,24 @@ def test_quote_returns_most_recent(mkt_client):
     PriceSnapshot.objects.create(ticker=ticker, price=Decimal("120.00"), timestamp=t1)
     resp = mkt_client.get("/api/tickers/GOOG/quote/")
     assert float(resp.json()["price"]) == 120.0
+
+
+@pytest.mark.django_db
+def test_quote_prefers_live_source_over_seed(mkt_client):
+    ticker = Ticker.objects.create(symbol="NVDA", name="NVIDIA")
+    now = timezone.now()
+    PriceSnapshot.objects.create(
+        ticker=ticker,
+        price=Decimal("99.00"),
+        timestamp=now,
+        source=PriceSnapshot.SOURCE_SEED,
+    )
+    PriceSnapshot.objects.create(
+        ticker=ticker,
+        price=Decimal("120.00"),
+        timestamp=now - datetime.timedelta(minutes=1),
+        source=PriceSnapshot.SOURCE_ALPACA_STREAM,
+    )
+    resp = mkt_client.get("/api/tickers/NVDA/quote/")
+    assert resp.status_code == 200
+    assert float(resp.json()["price"]) == 120.0

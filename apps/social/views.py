@@ -6,8 +6,14 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .fetchers.google_news import is_relevant_google_post
 from .models import SocialPost
 from .serializers import SocialPostSerializer
+
+FEED_LIMIT = 100
+GLOBAL_CANDIDATE_LIMIT = 5000
+GLOBAL_MAX_PER_SOURCE = 40
+GLOBAL_MAX_PER_TICKER = 15
 
 
 class TickerPostListView(generics.ListAPIView):
@@ -23,11 +29,60 @@ class SocialFeedView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        qs = SocialPost.objects.order_by("-fetched_at", "-posted_at")
+        qs = SocialPost.objects.select_related("ticker").order_by("-posted_at", "-fetched_at")
         symbol = self.request.query_params.get("symbol")
         if symbol:
             qs = qs.filter(ticker__symbol=symbol.upper())
-        return qs[:100]
+        source = self.request.query_params.get("source")
+        if source:
+            qs = qs.filter(source=source)
+        sentiment = self.request.query_params.get("sentiment")
+        if sentiment:
+            qs = qs.filter(sentiment_label=sentiment)
+
+        if symbol or source or sentiment:
+            return self._limited_quality_feed(qs)
+
+        return self._diversified_global_feed(qs)
+
+    def _limited_quality_feed(self, qs):
+        selected = []
+        for post in qs[:GLOBAL_CANDIDATE_LIMIT]:
+            if self._is_quality_feed_post(post):
+                selected.append(post)
+            if len(selected) >= FEED_LIMIT:
+                break
+        return selected
+
+    def _diversified_global_feed(self, qs):
+        selected = []
+        source_counts = {}
+        ticker_counts = {}
+
+        for post in qs[:GLOBAL_CANDIDATE_LIMIT]:
+            if not self._is_quality_feed_post(post):
+                continue
+            source_count = source_counts.get(post.source, 0)
+            ticker_count = ticker_counts.get(post.ticker_id, 0)
+            if source_count < GLOBAL_MAX_PER_SOURCE and ticker_count < GLOBAL_MAX_PER_TICKER:
+                selected.append(post)
+                source_counts[post.source] = source_count + 1
+                ticker_counts[post.ticker_id] = ticker_count + 1
+
+            if len(selected) >= FEED_LIMIT:
+                return selected
+
+        return selected
+
+    def _is_quality_feed_post(self, post):
+        if post.source != SocialPost.SOURCE_NEWS_GOOGLE:
+            return True
+        return is_relevant_google_post(
+            post.ticker.symbol,
+            post.ticker.name,
+            post.title,
+            post.cleaned_text or post.content,
+        )
 
 
 class TrendingView(APIView):

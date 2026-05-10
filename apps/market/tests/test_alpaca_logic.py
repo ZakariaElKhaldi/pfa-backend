@@ -30,6 +30,7 @@ class TestAlpacaStreamLogic:
         snapshot = PriceSnapshot.objects.get(ticker=ticker)
         assert float(snapshot.price) == 152.0
         assert float(snapshot.open_price) == 150.0
+        assert snapshot.source == PriceSnapshot.SOURCE_ALPACA_STREAM
         
         # Verify WebSocket push
         mock_push.assert_called_once()

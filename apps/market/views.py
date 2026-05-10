@@ -18,9 +18,14 @@ class TickerPriceListView(generics.ListAPIView):
     required_scopes = ["market.read"]
 
     def get_queryset(self):
-        return PriceSnapshot.objects.filter(ticker__symbol=self.kwargs["symbol"]).order_by(
-            "-timestamp"
-        )[:100]
+        return (
+            PriceSnapshot.objects
+            .filter(
+                ticker__symbol=self.kwargs["symbol"].upper(),
+                source__in=PriceSnapshot.LIVE_SOURCES,
+            )
+            .order_by("-timestamp")[:100]
+        )
 
 
 class TickerIndicatorsView(APIView):
@@ -29,7 +34,8 @@ class TickerIndicatorsView(APIView):
 
     def get(self, request, symbol):
         prices_qs = PriceSnapshot.objects.filter(
-            ticker__symbol=symbol
+            ticker__symbol=symbol.upper(),
+            source__in=PriceSnapshot.LIVE_SOURCES,
         ).order_by("timestamp").values_list("price", flat=True)
         close_prices = [float(p) for p in prices_qs]
 
@@ -61,7 +67,10 @@ class TickerQuoteView(APIView):
     def get(self, request, symbol):
         snap = (
             PriceSnapshot.objects
-            .filter(ticker__symbol=symbol.upper())
+            .filter(
+                ticker__symbol=symbol.upper(),
+                source__in=PriceSnapshot.LIVE_SOURCES,
+            )
             .order_by("-timestamp")
             .first()
         )

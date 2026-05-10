@@ -89,9 +89,11 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     )
 
     # Momentum: % price change over last 30 minutes, normalized to [-1, 1]
-    prices = PriceSnapshot.objects.filter(ticker=ticker, timestamp__gte=cutoff).order_by(
-        "timestamp"
-    )
+    prices = PriceSnapshot.objects.filter(
+        ticker=ticker,
+        timestamp__gte=cutoff,
+        source__in=PriceSnapshot.LIVE_SOURCES,
+    ).order_by("timestamp")
 
     if prices.count() >= 2:
         oldest_price = float(prices.first().price)

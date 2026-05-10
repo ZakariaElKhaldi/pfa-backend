@@ -115,7 +115,7 @@ docker-compose up -d db redis
 cd backend
 uv sync
 uv run python manage.py migrate
-uv run python manage.py runserver
+DJANGO_SETTINGS_MODULE=config.settings.local uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
 ### Hybrid Realtime Runbook (Option 2)
@@ -146,8 +146,24 @@ Notes:
 - `CELERY_WORKER_MAX_TASKS_PER_CHILD` defaults to `1` (configurable via env var).
 - WebSockets use JWT query param auth for `/ws/signals/` in local/dev (e.g. `?token=<access_jwt>`).
 
+WebSocket smoke check (market stream):
+```bash
+cd backend
+uv run python scripts/adhoc/scratch_ws.py
+```
+Expected result: connects to `ws://localhost:8000/ws/market/AAPL/` and prints at least one message.
+
+Price data hygiene (if seed/demo data polluted market snapshots):
+```bash
+cd backend
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py purge_seed_prices --dry-run
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py purge_seed_prices
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py check_price_integrity --symbol AAPL --symbol MSFT --symbol XOM
+```
+
 ### Troubleshooting Matrix
 - `403` or immediate close on `/ws/signals/`: frontend websocket auth token is missing/invalid or expired.
+- `/ws/market/<SYMBOL>/` does not connect: backend is likely running via WSGI (`runserver`) instead of ASGI (`daphne`), or ASGI startup failed.
 - Forecast endpoints return `503` with `TIMESFM_UNAVAILABLE`: model dependency/runtime is not available in the environment.
 - Repeated `401` on `/api/auth/user` and `/api/auth/token/refresh`: stale token state in local storage; clear auth tokens and re-login.
 

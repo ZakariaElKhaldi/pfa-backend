@@ -6,7 +6,7 @@ from .models import Ticker, Watchlist
 class TickerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticker
-        fields = ["symbol", "name", "created_at"]
+        fields = ["id", "symbol", "name", "created_at"]
         read_only_fields = ["created_at"]
 
 

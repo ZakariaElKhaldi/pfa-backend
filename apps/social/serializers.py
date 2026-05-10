@@ -6,6 +6,7 @@ from .models import SocialPost
 class SocialPostSerializer(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
     display_content = serializers.SerializerMethodField()
+    ticker_symbol = serializers.CharField(source="ticker.symbol", read_only=True)
 
     def get_content(self, obj: SocialPost) -> str:
         return obj.cleaned_text or obj.content
@@ -17,6 +18,8 @@ class SocialPostSerializer(serializers.ModelSerializer):
         model = SocialPost
         fields = [
             "id",
+            "ticker",
+            "ticker_symbol",
             "source",
             "external_id",
             "title",

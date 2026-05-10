@@ -12,6 +12,7 @@ import logging
 import threading
 
 import numpy as np
+
 try:
     import timesfm
 except ModuleNotFoundError:  # pragma: no cover - optional heavy dependency in tests
@@ -84,8 +85,8 @@ def forecast_series(
     Returns:
         List of predicted daily values.
     """
-    if len(history) < 10:
-        raise ValueError("Need at least 10 historical data points.")
+    if len(history) < 2:
+        raise ValueError("Need at least 2 historical data points.")
 
     model = get_timesfm_model()
 

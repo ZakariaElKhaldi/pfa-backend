@@ -51,6 +51,7 @@ class Command(BaseCommand):
                 low_price=bar.low,
                 volume=bar.volume,
                 timestamp=bar.timestamp if bar.timestamp else timezone.now(),
+                source=PriceSnapshot.SOURCE_ALPACA_REST,
             )
             updated += 1
             self.stdout.write(f"  {symbol}: ${bar.close}")

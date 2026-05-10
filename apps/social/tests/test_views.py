@@ -74,7 +74,7 @@ def test_list_posts_for_ticker_orders_by_fetched_at(client, ticker):
 
 
 @pytest.mark.django_db
-def test_posts_deduplicated_by_source_and_external_id(ticker):
+def test_posts_deduplicated_within_same_ticker_source_external_id(ticker):
     SocialPost.objects.create(
         ticker=ticker,
         source=SocialPost.SOURCE_REDDIT,
@@ -92,3 +92,23 @@ def test_posts_deduplicated_by_source_and_external_id(ticker):
             content="Duplicate",
             posted_at=timezone.now(),
         )
+
+
+@pytest.mark.django_db
+def test_posts_allow_same_source_external_id_across_different_tickers(ticker):
+    other = Ticker.objects.create(symbol="MSFT")
+    SocialPost.objects.create(
+        ticker=ticker,
+        source=SocialPost.SOURCE_NEWS_YAHOO,
+        external_id="shared-news-1",
+        content="First ticker copy",
+        posted_at=timezone.now(),
+    )
+    SocialPost.objects.create(
+        ticker=other,
+        source=SocialPost.SOURCE_NEWS_YAHOO,
+        external_id="shared-news-1",
+        content="Second ticker copy",
+        posted_at=timezone.now(),
+    )
+    assert SocialPost.objects.filter(source=SocialPost.SOURCE_NEWS_YAHOO, external_id="shared-news-1").count() == 2

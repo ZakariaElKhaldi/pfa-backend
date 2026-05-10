@@ -38,6 +38,7 @@ class AlpacaStreamManager:
                 low_price=bar.low,
                 volume=bar.volume,
                 timestamp=bar.timestamp,
+                source=PriceSnapshot.SOURCE_ALPACA_STREAM,
             )
 
             await sync_to_async(push_market_update)(

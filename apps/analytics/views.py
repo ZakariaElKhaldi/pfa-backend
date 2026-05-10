@@ -1,26 +1,42 @@
+import logging
+from datetime import timedelta
+
+from django.core.cache import cache
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate, TruncHour
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAnalystOrAdmin
+from apps.market.models import PriceSnapshot
+from apps.signals.models import SignalSnapshot
 
-from . import services
+from . import services, timesfm_service
 from .models import BacktestRun
 from .serializers import BacktestRequestSerializer, BacktestRunSerializer
 from .throttles import BacktestThrottle
 
-import logging
-
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
-from collections import defaultdict
-
-from apps.market.models import PriceSnapshot
-from apps.signals.models import SignalSnapshot
-from . import timesfm_service
-
 logger = logging.getLogger(__name__)
+
+BREADTH_WINDOWS = {
+    "1d": timedelta(days=1),
+    "7d": timedelta(days=7),
+    "30d": timedelta(days=30),
+    "90d": timedelta(days=90),
+}
+VOLUME_FORECAST_CACHE_TTL_SECONDS = 60 * 60 * 12
+
+
+def _is_timesfm_unavailable(exc):
+    return (
+        isinstance(exc, timesfm_service.TimesFMUnavailableError)
+        or exc.__class__.__name__ == "TimesFMUnavailableError"
+    )
 
 
 class TopMoversView(APIView):
@@ -145,16 +161,22 @@ class VolumeForecastView(APIView):
 
     permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
 
-    @method_decorator(cache_page(60 * 60 * 12))  # 12-hour cache per ticker
     def get(self, request):
         ticker = request.query_params.get("ticker", "").upper()
         if not ticker:
             return Response({"detail": "ticker parameter is required"}, status=400)
+        cache_key = f"analytics:volume_forecast:v1:{ticker}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
 
         # Fetch latest 200 volume records directly in SQL (desc → reverse)
         volume_qs = (
             PriceSnapshot.objects
-            .filter(ticker__symbol=ticker)
+            .filter(
+                ticker__symbol=ticker,
+                source__in=PriceSnapshot.LIVE_SOURCES,
+            )
             .order_by("-timestamp")
             .values_list("volume", flat=True)[:200]
         )
@@ -174,11 +196,13 @@ class VolumeForecastView(APIView):
             timesfm_service.check_timesfm_ready()
             forecasts = timesfm_service.forecast_volume(volume_history, horizon=30)
         except Exception as exc:
-            if isinstance(exc, timesfm_service.TimesFMUnavailableError) or exc.__class__.__name__ == "TimesFMUnavailableError":
+            if _is_timesfm_unavailable(exc):
                 return Response(
                     {
                         "detail": "Forecast model is temporarily unavailable.",
                         "code": "TIMESFM_UNAVAILABLE",
+                        "method": "timesfm",
+                        "model_status": "TIMESFM_UNAVAILABLE",
                     },
                     status=503,
                 )
@@ -196,11 +220,16 @@ class VolumeForecastView(APIView):
                 status=500,
             )
 
-        return Response({
+        payload = {
             "ticker": ticker,
             "horizon": len(forecasts),
             "forecast": forecasts,
-        })
+            "method": "timesfm",
+            "model_status": "ready",
+        }
+        # Cache only successful forecasts. Transient failures should recover immediately.
+        cache.set(cache_key, payload, VOLUME_FORECAST_CACHE_TTL_SECONDS)
+        return Response(payload)
 
 
 class BreadthForecastView(APIView):
@@ -210,54 +239,77 @@ class BreadthForecastView(APIView):
 
     @method_decorator(cache_page(60 * 60 * 12))  # 12-hour cache
     def get(self, request):
-        # We need historical sequence. Fetch recent signals to build a decent breadth line
-        signals = SignalSnapshot.objects.all().order_by('-created_at')[:3000]
-        
-        # Group by day
-        by_day = defaultdict(lambda: {"BUY": 0, "SELL": 0})
-        for s in signals:
-            day_str = s.created_at.strftime("%Y-%m-%d")
-            if s.signal == "BUY":
-                by_day[day_str]["BUY"] += 1
-            elif s.signal == "SELL":
-                by_day[day_str]["SELL"] += 1
-                
-        if len(by_day) < 10:
+        window = request.query_params.get("window", "7d").lower()
+        if window not in BREADTH_WINDOWS:
+            return Response({"detail": "window must be one of 1d, 7d, 30d, 90d"}, status=400)
+
+        since = timezone.now() - BREADTH_WINDOWS[window]
+        trunc = TruncHour("created_at") if window == "1d" else TruncDate("created_at")
+        rows = (
+            SignalSnapshot.objects
+            .filter(created_at__gte=since)
+            .annotate(bucket=trunc)
+            .values("bucket")
+            .annotate(
+                buy=Count("id", filter=Q(signal=SignalSnapshot.SIGNAL_BUY)),
+                sell=Count("id", filter=Q(signal=SignalSnapshot.SIGNAL_SELL)),
+                hold=Count("id", filter=Q(signal=SignalSnapshot.SIGNAL_HOLD)),
+            )
+            .order_by("bucket")
+        )
+
+        cumulative = 0
+        history = []
+        for row in rows:
+            net = row["buy"] - row["sell"]
+            cumulative += net
+            bucket = row["bucket"]
+            history.append({
+                "bucket": bucket.isoformat(),
+                "buy": row["buy"],
+                "sell": row["sell"],
+                "hold": row["hold"],
+                "net": net,
+                "cumulative": cumulative,
+            })
+
+        if len(history) < 2:
             return Response(
                 {
                     "detail": "Not enough historical breadth data for forecasting.",
                     "code": "INSUFFICIENT_HISTORY",
+                    "history": history,
                 },
                 status=400,
             )
-            
-        # Sort by date
-        sorted_days = sorted(by_day.items())
-        
-        # Build cumulative breadth series
-        cumulative = 0
-        breadth_history = []
-        for date_str, counts in sorted_days:
-            net = counts["BUY"] - counts["SELL"]
-            cumulative += net
-            breadth_history.append(cumulative)
+
+        breadth_history = [point["cumulative"] for point in history]
             
         try:
             timesfm_service.check_timesfm_ready()
             # We can reuse the timesfm_service which just expects a sequence of numbers
-            forecasts = timesfm_service.forecast_series(breadth_history, horizon=30, clip_zero=False)
+            forecasts = timesfm_service.forecast_series(
+                breadth_history,
+                horizon=30,
+                clip_zero=False,
+            )
         except Exception as exc:
-            if isinstance(exc, timesfm_service.TimesFMUnavailableError) or exc.__class__.__name__ == "TimesFMUnavailableError":
+            if _is_timesfm_unavailable(exc):
                 return Response(
                     {
                         "detail": "Forecast model is temporarily unavailable.",
                         "code": "TIMESFM_UNAVAILABLE",
+                        "history": history,
+                        "forecast": [],
+                        "last_historical_value": breadth_history[-1],
+                        "method": "timesfm",
+                        "model_status": "TIMESFM_UNAVAILABLE",
                     },
                     status=503,
                 )
             if isinstance(exc, ValueError):
                 return Response(
-                    {"detail": str(exc), "code": "INSUFFICIENT_HISTORY"},
+                    {"detail": str(exc), "code": "INSUFFICIENT_HISTORY", "history": history},
                     status=400,
                 )
             logger.exception("TimesFM inference failed for Market Breadth")
@@ -270,7 +322,10 @@ class BreadthForecastView(APIView):
             )
 
         return Response({
+            "history": history,
             "horizon": len(forecasts),
             "forecast": forecasts,
             "last_historical_value": breadth_history[-1],
+            "method": "timesfm",
+            "model_status": "ready",
         })

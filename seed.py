@@ -129,6 +129,7 @@ for sym, ticker_obj in tickers.items():
                 low_price=Decimal(str(round(l, 4))),
                 volume=vol,
                 timestamp=ts,
+                source=PriceSnapshot.SOURCE_SEED,
             ))
 
 PriceSnapshot.objects.bulk_create(price_objs, ignore_conflicts=True)

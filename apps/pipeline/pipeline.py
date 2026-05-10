@@ -36,16 +36,19 @@ def run_pipeline_for_ticker(symbol: str) -> None:
 
     scorer = SentimentScorer()
     fetchers = [
-        RedditFetcher(),
-        AlpacaNewsFetcher(),
-        YahooNewsFetcher(),
-        GoogleNewsFetcher(),
+        (RedditFetcher(), None),
+        (AlpacaNewsFetcher(), None),
+        (YahooNewsFetcher(), None),
+        (GoogleNewsFetcher(), ticker.name),
     ]
 
     # Step 1-3: Fetch, clean, store
-    for fetcher in fetchers:
+    for fetcher, company_name in fetchers:
         try:
-            raw_posts = fetcher.fetch(symbol)
+            if company_name:
+                raw_posts = fetcher.fetch(symbol, company_name)
+            else:
+                raw_posts = fetcher.fetch(symbol)
         except Exception as e:
             logger.error("%s fetch failed for %s: %s", fetcher.__class__.__name__, symbol, e)
             continue
@@ -55,10 +58,10 @@ def run_pipeline_for_ticker(symbol: str) -> None:
             if not is_quality_post(cleaned):
                 continue
             SocialPost.objects.get_or_create(
+                ticker=ticker,
                 source=post_data["source"],
                 external_id=str(post_data["external_id"])[:200],
                 defaults={
-                    "ticker": ticker,
                     "title": str(post_data.get("title") or "")[:500] if post_data.get("title") else None,
                     "url": str(post_data.get("url") or "")[:1000] if post_data.get("url") else None,
                     "content": post_data["content"],

@@ -4,7 +4,16 @@ from django.db import models
 class SocialPost(models.Model):
     SOURCE_REDDIT = "reddit"
     SOURCE_STOCKTWITS = "stocktwits"
-    SOURCE_CHOICES = [(SOURCE_REDDIT, "Reddit"), (SOURCE_STOCKTWITS, "StockTwits")]
+    SOURCE_NEWS_GOOGLE = "news_google"
+    SOURCE_NEWS_YAHOO = "news_yahoo"
+    SOURCE_NEWS_ALPACA = "news_alpaca"
+    SOURCE_CHOICES = [
+        (SOURCE_REDDIT, "Reddit"),
+        (SOURCE_STOCKTWITS, "StockTwits"),
+        (SOURCE_NEWS_GOOGLE, "Google News"),
+        (SOURCE_NEWS_YAHOO, "Yahoo News"),
+        (SOURCE_NEWS_ALPACA, "Alpaca News"),
+    ]
 
     LABEL_BULLISH = "bullish"
     LABEL_BEARISH = "bearish"
@@ -31,7 +40,7 @@ class SocialPost(models.Model):
     fetched_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("source", "external_id")
+        unique_together = ("ticker", "source", "external_id")
         ordering = ["-posted_at"]
 
     def __str__(self):

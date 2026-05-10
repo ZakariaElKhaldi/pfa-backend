@@ -15,6 +15,9 @@ trap cleanup EXIT INT TERM
 
 echo "Using DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
 
+echo "Applying database migrations..."
+uv run python manage.py migrate --noinput
+
 echo "Starting ASGI server (Daphne)..."
 uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application &
 DAPHNE_PID=$!
