@@ -1,4 +1,5 @@
 import pytest
+from datetime import timedelta
 from django.utils import timezone
 from apps.social.models import SocialPost
 
@@ -23,6 +24,56 @@ def test_social_feed_returns_posts(auth_client, ticker):
     resp = auth_client.get("/api/social/feed/")
     assert resp.status_code == 200
     assert len(resp.json()) >= 1
+
+
+@pytest.mark.django_db
+def test_social_feed_orders_by_fetched_at_desc(auth_client, ticker):
+    older = SocialPost.objects.create(
+        ticker=ticker,
+        source="reddit",
+        external_id="order_old",
+        title="Old fetched",
+        content="old",
+        cleaned_text="old",
+        posted_at=timezone.now(),
+    )
+    newer = SocialPost.objects.create(
+        ticker=ticker,
+        source="stocktwits",
+        external_id="order_new",
+        title="New fetched",
+        content="new",
+        cleaned_text="new",
+        posted_at=timezone.now() - timedelta(days=1),
+    )
+    old_time = timezone.now() - timedelta(minutes=10)
+    new_time = timezone.now()
+    SocialPost.objects.filter(id=older.id).update(fetched_at=old_time)
+    SocialPost.objects.filter(id=newer.id).update(fetched_at=new_time)
+
+    resp = auth_client.get("/api/social/feed/")
+    assert resp.status_code == 200
+    data = resp.json()
+    ids = [row["id"] for row in data]
+    assert ids.index(newer.id) < ids.index(older.id)
+
+
+@pytest.mark.django_db
+def test_social_feed_includes_display_content_from_cleaned_text(auth_client, ticker):
+    post = SocialPost.objects.create(
+        ticker=ticker,
+        source="reddit",
+        external_id="cleaned_1",
+        title="x",
+        content="<div>raw html</div>",
+        cleaned_text="raw html",
+        posted_at=timezone.now(),
+    )
+    resp = auth_client.get("/api/social/feed/")
+    assert resp.status_code == 200
+    row = next(item for item in resp.json() if item["id"] == post.id)
+    assert row["display_content"] == "raw html"
+    assert row["content"] == "raw html"
 
 
 @pytest.mark.django_db

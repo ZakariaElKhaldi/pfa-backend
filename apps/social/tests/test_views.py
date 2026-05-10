@@ -1,4 +1,5 @@
 import pytest
+from datetime import timedelta
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -43,6 +44,33 @@ def test_list_posts_for_ticker(client, ticker):
     response = client.get("/api/tickers/AAPL/posts/")
     assert response.status_code == 200
     assert len(response.json()) == 1
+
+
+@pytest.mark.django_db
+def test_list_posts_for_ticker_orders_by_fetched_at(client, ticker):
+    older = SocialPost.objects.create(
+        ticker=ticker,
+        source=SocialPost.SOURCE_REDDIT,
+        external_id="ticker_old",
+        content="older fetched",
+        cleaned_text="older fetched",
+        posted_at=timezone.now(),
+    )
+    newer = SocialPost.objects.create(
+        ticker=ticker,
+        source=SocialPost.SOURCE_STOCKTWITS,
+        external_id="ticker_new",
+        content="newer fetched",
+        cleaned_text="newer fetched",
+        posted_at=timezone.now() - timedelta(days=1),
+    )
+    SocialPost.objects.filter(id=older.id).update(fetched_at=timezone.now() - timedelta(minutes=10))
+    SocialPost.objects.filter(id=newer.id).update(fetched_at=timezone.now())
+
+    response = client.get("/api/tickers/AAPL/posts/")
+    assert response.status_code == 200
+    ids = [row["id"] for row in response.json()]
+    assert ids.index(newer.id) < ids.index(older.id)
 
 
 @pytest.mark.django_db

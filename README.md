@@ -120,7 +120,7 @@ uv run python manage.py runserver
 
 ### Hybrid Realtime Runbook (Option 2)
 Run these 4 processes in local/dev:
-1. Django API server
+1. Daphne ASGI server
 2. Celery worker
 3. Celery beat (2-minute fallback ingestion)
 4. Alpaca news websocket daemon (`run_news_stream`)
@@ -128,7 +128,7 @@ Run these 4 processes in local/dev:
 Manual start:
 ```bash
 cd backend
-DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py runserver
+DJANGO_SETTINGS_MODULE=config.settings.local uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
 DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config worker -l info
 DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config beat -l info
 DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py run_news_stream
@@ -144,6 +144,12 @@ Notes:
 - `pipeline.run_pipeline` now runs every **2 minutes** as fallback ingestion for non-stream sources.
 - Alpaca news is ingested continuously by `run_news_stream`.
 - `CELERY_WORKER_MAX_TASKS_PER_CHILD` defaults to `1` (configurable via env var).
+- WebSockets use JWT query param auth for `/ws/signals/` in local/dev (e.g. `?token=<access_jwt>`).
+
+### Troubleshooting Matrix
+- `403` or immediate close on `/ws/signals/`: frontend websocket auth token is missing/invalid or expired.
+- Forecast endpoints return `503` with `TIMESFM_UNAVAILABLE`: model dependency/runtime is not available in the environment.
+- Repeated `401` on `/api/auth/user` and `/api/auth/token/refresh`: stale token state in local storage; clear auth tokens and re-login.
 
 ### Tests
 ```bash

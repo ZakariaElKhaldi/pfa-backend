@@ -23,11 +23,15 @@ _tfm_model = None
 _tfm_lock = threading.Lock()
 
 
+class TimesFMUnavailableError(RuntimeError):
+    """Raised when TimesFM dependency/model runtime is unavailable."""
+
+
 def get_timesfm_model():
     """Return the TimesFM model singleton (lazy, thread-safe)."""
     global _tfm_model
     if timesfm is None:
-        raise RuntimeError("TimesFM dependency is not installed.")
+        raise TimesFMUnavailableError("TimesFM dependency is not installed.")
     if _tfm_model is not None:
         return _tfm_model
 
@@ -38,22 +42,30 @@ def get_timesfm_model():
             return _tfm_model
 
         logger.info("Initializing TimesFM model from HuggingFace…")
-        _tfm_model = timesfm.TimesFm(
-            hparams=timesfm.TimesFmHparams(
-                context_len=512,
-                horizon_len=128,     # max horizon the model supports
-                input_patch_len=32,
-                output_patch_len=128,
-                num_layers=20,
-                model_dims=1280,
-                use_positional_embedding=False,
-            ),
-            checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id="google/timesfm-1.0-200m-pytorch",
-            ),
-        )
+        try:
+            _tfm_model = timesfm.TimesFm(
+                hparams=timesfm.TimesFmHparams(
+                    context_len=512,
+                    horizon_len=128,     # max horizon the model supports
+                    input_patch_len=32,
+                    output_patch_len=128,
+                    num_layers=20,
+                    model_dims=1280,
+                    use_positional_embedding=False,
+                ),
+                checkpoint=timesfm.TimesFmCheckpoint(
+                    huggingface_repo_id="google/timesfm-1.0-200m-pytorch",
+                ),
+            )
+        except Exception as exc:
+            raise TimesFMUnavailableError("TimesFM model failed to initialize.") from exc
         logger.info("TimesFM model ready.")
         return _tfm_model
+
+
+def check_timesfm_ready() -> None:
+    """Raises TimesFMUnavailableError if model/dependency is unavailable."""
+    get_timesfm_model()
 
 
 def forecast_series(

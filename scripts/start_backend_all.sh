@@ -15,8 +15,16 @@ trap cleanup EXIT INT TERM
 
 echo "Using DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
 
-echo "Starting Django runserver..."
-uv run python manage.py runserver 0.0.0.0:8000 &
+echo "Starting ASGI server (Daphne)..."
+uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application &
+DAPHNE_PID=$!
+
+# Fail fast if ASGI startup crashed (e.g., import/config errors).
+sleep 1
+if ! kill -0 "$DAPHNE_PID" 2>/dev/null; then
+  echo "Daphne failed to start. Exiting."
+  exit 1
+fi
 
 # Give web process a moment to initialize before workers.
 sleep 1

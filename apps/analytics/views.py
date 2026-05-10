@@ -163,16 +163,36 @@ class VolumeForecastView(APIView):
 
         if len(volume_history) < 10:
             return Response(
-                {"detail": "Not enough historical volume data for forecasting."},
+                {
+                    "detail": "Not enough historical volume data for forecasting.",
+                    "code": "INSUFFICIENT_HISTORY",
+                },
                 status=400,
             )
 
         try:
+            timesfm_service.check_timesfm_ready()
             forecasts = timesfm_service.forecast_volume(volume_history, horizon=30)
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, timesfm_service.TimesFMUnavailableError) or exc.__class__.__name__ == "TimesFMUnavailableError":
+                return Response(
+                    {
+                        "detail": "Forecast model is temporarily unavailable.",
+                        "code": "TIMESFM_UNAVAILABLE",
+                    },
+                    status=503,
+                )
+            if isinstance(exc, ValueError):
+                return Response(
+                    {"detail": str(exc), "code": "INSUFFICIENT_HISTORY"},
+                    status=400,
+                )
             logger.exception("TimesFM inference failed for %s", ticker)
             return Response(
-                {"detail": "Model inference failed. Please try again later."},
+                {
+                    "detail": "Model inference failed. Please try again later.",
+                    "code": "FORECAST_INFERENCE_FAILED",
+                },
                 status=500,
             )
 
@@ -204,7 +224,10 @@ class BreadthForecastView(APIView):
                 
         if len(by_day) < 10:
             return Response(
-                {"detail": "Not enough historical breadth data for forecasting."},
+                {
+                    "detail": "Not enough historical breadth data for forecasting.",
+                    "code": "INSUFFICIENT_HISTORY",
+                },
                 status=400,
             )
             
@@ -220,12 +243,29 @@ class BreadthForecastView(APIView):
             breadth_history.append(cumulative)
             
         try:
+            timesfm_service.check_timesfm_ready()
             # We can reuse the timesfm_service which just expects a sequence of numbers
             forecasts = timesfm_service.forecast_series(breadth_history, horizon=30, clip_zero=False)
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, timesfm_service.TimesFMUnavailableError) or exc.__class__.__name__ == "TimesFMUnavailableError":
+                return Response(
+                    {
+                        "detail": "Forecast model is temporarily unavailable.",
+                        "code": "TIMESFM_UNAVAILABLE",
+                    },
+                    status=503,
+                )
+            if isinstance(exc, ValueError):
+                return Response(
+                    {"detail": str(exc), "code": "INSUFFICIENT_HISTORY"},
+                    status=400,
+                )
             logger.exception("TimesFM inference failed for Market Breadth")
             return Response(
-                {"detail": "Model inference failed. Please try again later."},
+                {
+                    "detail": "Model inference failed. Please try again later.",
+                    "code": "FORECAST_INFERENCE_FAILED",
+                },
                 status=500,
             )
 
@@ -234,4 +274,3 @@ class BreadthForecastView(APIView):
             "forecast": forecasts,
             "last_historical_value": breadth_history[-1],
         })
-

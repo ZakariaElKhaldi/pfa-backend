@@ -15,7 +15,7 @@ class TickerPostListView(generics.ListAPIView):
 
     def get_queryset(self):
         symbol = self.kwargs["symbol"]
-        return SocialPost.objects.filter(ticker__symbol=symbol).order_by("-posted_at")
+        return SocialPost.objects.filter(ticker__symbol=symbol).order_by("-fetched_at", "-posted_at")
 
 
 class SocialFeedView(generics.ListAPIView):
@@ -23,7 +23,7 @@ class SocialFeedView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        qs = SocialPost.objects.order_by("-posted_at")
+        qs = SocialPost.objects.order_by("-fetched_at", "-posted_at")
         symbol = self.request.query_params.get("symbol")
         if symbol:
             qs = qs.filter(ticker__symbol=symbol.upper())
