@@ -12,7 +12,10 @@ import logging
 import threading
 
 import numpy as np
-import timesfm
+try:
+    import timesfm
+except ModuleNotFoundError:  # pragma: no cover - optional heavy dependency in tests
+    timesfm = None
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +23,11 @@ _tfm_model = None
 _tfm_lock = threading.Lock()
 
 
-def get_timesfm_model() -> timesfm.TimesFm:
+def get_timesfm_model():
     """Return the TimesFM model singleton (lazy, thread-safe)."""
     global _tfm_model
+    if timesfm is None:
+        raise RuntimeError("TimesFM dependency is not installed.")
     if _tfm_model is not None:
         return _tfm_model
 

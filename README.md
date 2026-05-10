@@ -118,6 +118,33 @@ uv run python manage.py migrate
 uv run python manage.py runserver
 ```
 
+### Hybrid Realtime Runbook (Option 2)
+Run these 4 processes in local/dev:
+1. Django API server
+2. Celery worker
+3. Celery beat (2-minute fallback ingestion)
+4. Alpaca news websocket daemon (`run_news_stream`)
+
+Manual start:
+```bash
+cd backend
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py runserver
+DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config worker -l info
+DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config beat -l info
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py run_news_stream
+```
+
+One-command start for everything:
+```bash
+cd backend
+./scripts/start_backend_all.sh
+```
+
+Notes:
+- `pipeline.run_pipeline` now runs every **2 minutes** as fallback ingestion for non-stream sources.
+- Alpaca news is ingested continuously by `run_news_stream`.
+- `CELERY_WORKER_MAX_TASKS_PER_CHILD` defaults to `1` (configurable via env var).
+
 ### Tests
 ```bash
 cd backend

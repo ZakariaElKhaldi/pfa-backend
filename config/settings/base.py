@@ -110,11 +110,16 @@ CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://redis:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+CELERY_WORKER_MAX_TASKS_PER_CHILD = config(
+    "CELERY_WORKER_MAX_TASKS_PER_CHILD",
+    default=1,
+    cast=int,
+)
 
 CELERY_BEAT_SCHEDULE = {
-    "pipeline-run-every-15min": {
+    "pipeline-run-every-2min": {
         "task": "pipeline.run_pipeline",
-        "schedule": timedelta(minutes=15),
+        "schedule": timedelta(minutes=2),
     },
     "signals-evaluate-accuracy-hourly": {
         "task": "signals.evaluate_accuracy",

@@ -12,10 +12,10 @@ def test_beat_schedule_defined():
 
 
 def test_beat_schedule_runs_pipeline():
-    """Pipeline ingestion must run on a short cadence (≤ 15 min)."""
-    entry = settings.CELERY_BEAT_SCHEDULE["pipeline-run-every-15min"]
+    """Pipeline fallback ingestion must run on a short cadence (≤ 2 min)."""
+    entry = settings.CELERY_BEAT_SCHEDULE["pipeline-run-every-2min"]
     assert entry["task"] == "pipeline.run_pipeline"
-    assert entry["schedule"] <= timedelta(minutes=15)
+    assert entry["schedule"] <= timedelta(minutes=2)
 
 
 def test_beat_schedule_evaluates_accuracy_hourly():
