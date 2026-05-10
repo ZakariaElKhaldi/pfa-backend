@@ -57,6 +57,24 @@ def test_recent_signals_limit(auth_client, user, ticker):
 
 
 @pytest.mark.django_db
+def test_recent_signals_paginated_mode(auth_client, user, ticker):
+    Watchlist.objects.create(user=user, ticker=ticker)
+    for _ in range(4):
+        SignalSnapshot.objects.create(
+            ticker=ticker, signal="BUY", sentiment=0.5, momentum=0.4,
+            consistency=0.8, post_count=4, bullish_ratio=0.5,
+            normalized_index=0.4, time_decay_score=0.5,
+            source_weighted_score=0.5, prediction_method="rule_based",
+            prediction_confidence=0.7, feature_importances={},
+        )
+    resp = auth_client.get("/api/signals/recent/?limit=4&page=1&page_size=2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 4
+    assert len(data["results"]) == 2
+
+
+@pytest.mark.django_db
 def test_recent_signals_admin_all_returns_platform_signals(admin_client, ticker):
     """Admin dashboard can request platform-wide recent signals."""
     SignalSnapshot.objects.create(

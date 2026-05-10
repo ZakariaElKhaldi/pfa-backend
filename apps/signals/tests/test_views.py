@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import CustomUser
-from apps.signals.models import SignalSnapshot
+from apps.signals.models import SignalAccuracy, SignalSnapshot
 from apps.tickers.models import Ticker
 
 
@@ -79,6 +79,43 @@ def test_signal_history_endpoint(client, signal_snapshot):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
+
+
+@pytest.mark.django_db
+def test_signal_history_endpoint_paginated_mode(client, signal_snapshot):
+    SignalSnapshot.objects.create(
+        ticker=signal_snapshot.ticker,
+        sentiment=0.2,
+        momentum=0.1,
+        consistency=0.7,
+        signal="HOLD",
+        post_count=3,
+    )
+    resp = client.get("/api/tickers/AAPL/signal/history/?page=1&page_size=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "results" in data
+    assert data["count"] >= 2
+    assert len(data["results"]) == 1
+
+
+@pytest.mark.django_db
+def test_signal_accuracy_endpoint_paginated_mode(client, signal_snapshot):
+    SignalAccuracy.objects.create(
+        signal_snapshot=signal_snapshot,
+        predicted="BUY",
+        actual_direction="UP",
+        price_at_signal="100.00",
+        price_after_1h="101.00",
+        price_after_24h="102.00",
+        accuracy_1h=True,
+        accuracy_24h=True,
+    )
+    resp = client.get("/api/tickers/AAPL/signal/accuracy/?page=1&page_size=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert len(data["results"]) == 1
 
 
 @pytest.mark.django_db

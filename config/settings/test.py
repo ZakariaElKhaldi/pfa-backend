@@ -30,6 +30,7 @@ RATELIMIT_ENABLE = False
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 TESTING = True
+ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
 # Allow frontend dev servers to call the test backend without CORS issues.
 # For local development only.

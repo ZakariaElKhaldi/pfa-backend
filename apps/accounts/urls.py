@@ -10,6 +10,8 @@ from dj_rest_auth.views import (
 )
 
 from .views import (
+    APIKeyListCreateView,
+    APIKeyRevokeView,
     AdminStatsView,
     AdminUserDetailView,
     AdminUserListView,
@@ -36,6 +38,8 @@ urlpatterns = [
     path("password/reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     # Preferences
     path("preferences/", UserPreferenceView.as_view(), name="user-preferences"),
+    path("api-keys/", APIKeyListCreateView.as_view(), name="api-key-list-create"),
+    path("api-keys/<int:pk>/", APIKeyRevokeView.as_view(), name="api-key-revoke"),
     # Admin
     path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
     path("admin/users/<int:pk>/", AdminUserDetailView.as_view(), name="admin-user-detail"),

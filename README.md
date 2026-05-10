@@ -1,8 +1,8 @@
 # CrowdSignal Backend
 
-Django 4.2 + DRF backend for the CrowdSignal trading signals platform. Aggregates social sentiment from Reddit/StockTwits, computes trading signals, tracks accuracy, and powers a simulated portfolio.
+Django 4.2 + DRF backend for the CrowdSignal trading signals platform. Aggregates social/news sentiment, computes trading signals, tracks accuracy, and powers a simulated portfolio.
 
-**Status:** Backend MVP complete — 197 tests passing, 0 `manage.py check` errors, 20/20 planned tasks done.
+**Status:** Active development — run the test commands below for current pass/fail state.
 
 ---
 
@@ -10,12 +10,12 @@ Django 4.2 + DRF backend for the CrowdSignal trading signals platform. Aggregate
 
 - **Framework:** Django 4.2, Django REST Framework
 - **Auth:** `rest_framework_simplejwt` (JWT) + `dj-rest-auth` + `django-allauth` (GitHub/Google OAuth)
-- **Database:** PostgreSQL (prod), SQLite in-memory (tests)
+- **Database:** PostgreSQL (prod), SQLite file DB in tests (`test_db.sqlite3`)
 - **Async:** Celery + Redis (broker + result backend)
 - **Realtime:** Django Channels over Daphne (ASGI), Redis channel layer
 - **Rate limiting:** `django-ratelimit`
 - **Package manager:** `uv`
-- **Python:** 3.14
+- **Python:** `>=3.11` (project metadata), tested locally on Python 3.14
 
 ---
 
@@ -31,7 +31,7 @@ Django 4.2 + DRF backend for the CrowdSignal trading signals platform. Aggregate
 
 ### Core Domain
 - [x] **Tickers** — CRUD, user-scoped **Watchlist** (M2M)
-- [x] **Social posts** — Reddit + StockTwits fetchers, sentiment scoring, deduplication
+- [x] **Social/news posts** — Reddit + multiple news fetchers, sentiment scoring, deduplication
 - [x] **Signal engine** — sentiment/momentum/consistency, BUY/SELL/HOLD, aggregation fields, explanation endpoint
 - [x] **Alerts** — auto-generated from signals, admin-only resolve
 - [x] **Market data** — Alpaca stream integration, price snapshots, technical indicators (SMA, RSI)
@@ -64,9 +64,9 @@ Django 4.2 + DRF backend for the CrowdSignal trading signals platform. Aggregate
 - [x] Wired into: signal engine, pipeline, alerts, accuracy task, price stream
 
 ### Testing & Quality
-- [x] 197 tests passing (auth, permissions, trading, signals, alerts, pipeline, export, strategies, audit)
+- [x] Extensive backend test coverage across auth, permissions, trading, signals, alerts, pipeline, export, strategies, and analytics
 - [x] Shared fixtures in `conftest.py`: `user`, `admin_user`, `auth_client`, `admin_client`, `ticker`, `seeded_portfolio`
-- [x] Test settings: SQLite `:memory:`, `InMemoryChannelLayer`, `LocMemCache`, `RATELIMIT_ENABLE=False`
+- [x] Test settings: SQLite file DB (`test_db.sqlite3`), `InMemoryChannelLayer`, `LocMemCache`, `RATELIMIT_ENABLE=False`
 - [x] `CELERY_TASK_ALWAYS_EAGER` in tests
 
 ---
@@ -78,7 +78,7 @@ backend/
 ├── apps/
 │   ├── accounts/       # CustomUser, permissions, OAuth views
 │   ├── tickers/        # Ticker CRUD + Watchlist
-│   ├── social/         # Reddit/StockTwits fetchers, SocialPost
+│   ├── social/         # Reddit/news fetchers, SocialPost
 │   ├── sentiment/      # Sentiment scoring pipeline
 │   ├── signals/        # SignalEngine, SignalSnapshot, SignalAccuracy, DecisionLog, Alerts
 │   ├── market/         # Alpaca stream, PriceSnapshot, indicators
@@ -91,7 +91,7 @@ backend/
 ├── config/
 │   ├── settings/
 │   │   ├── base.py     # Shared settings
-│   │   └── test.py     # SQLite + in-memory layers
+│   │   └── test.py     # SQLite file DB + in-memory layers
 │   ├── urls.py
 │   └── asgi.py
 ├── conftest.py         # Shared pytest fixtures
@@ -104,7 +104,7 @@ backend/
 
 ### Prerequisites
 - Docker + docker-compose (for Postgres + Redis), OR local Postgres/Redis
-- Python 3.14, `uv`
+- Python 3.11+ (`pyproject.toml`), `uv`
 
 ### Quick Start
 ```bash
@@ -162,7 +162,7 @@ See `.env.example` at the project root. Key variables:
   - Manipulation/anomaly detection (sudden sentiment spikes)
   - Model retraining logs and scheduling
 - [ ] **Strategy agents engine** — execute `StrategyRule` against live signals, record `StrategyExecution`
-- [ ] **API keys** — activate `APIKey` model: generation endpoint, auth backend, scope enforcement middleware
+- [x] **API keys** — generation/revocation endpoints, API key auth backend, and scope checks on protected endpoints
 
 ### Nice-to-have / Post-MVP
 - [ ] **API documentation** — `drf-spectacular` for OpenAPI schema + Swagger UI
@@ -174,9 +174,9 @@ See `.env.example` at the project root. Key variables:
 - [ ] **Celery beat schedule** — concrete hourly/daily schedule for accuracy eval and data fetches
 
 ### Known minor issues
-- [ ] `apps/accounts/models.APIKey` — unused scaffold model, has migration; enforce or remove in v1
+- [ ] Full JWT-user RBAC rollout using `CustomUser.permissions` across selected endpoints (API-key scopes are already enforced)
 - [ ] JWT `SECRET_KEY` length warning in tests (29 bytes vs. recommended 32+) — pre-existing dev key
-- [ ] Signal history endpoint capped at 100 records without pagination — consider cursor pagination
+- [ ] Endpoint pagination migration is in progress; some endpoints still support legacy array responses for frontend compatibility
 - [ ] Export endpoint uses `values()` dict slicing — acceptable for 10k cap, but no streaming DB cursor
 
 ---

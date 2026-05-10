@@ -19,8 +19,7 @@ websocket_application = AuthMiddlewareStack(
     )
 )
 
-if not settings.DEBUG:
-    websocket_application = AllowedHostsOriginValidator(websocket_application)
+websocket_application = AllowedHostsOriginValidator(websocket_application)
 
 application = ProtocolTypeRouter(
     {

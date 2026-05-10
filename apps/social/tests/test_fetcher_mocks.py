@@ -21,10 +21,10 @@ class TestFetcherMocks:
         fetcher = RedditFetcher()
         posts = fetcher.fetch("NVDA")
         
-        # RedditFetcher iterates over 4 subreddits, so it should call parse 4 times
-        assert mock_parse.call_count == 4
-        # Since we used the same mock for all, we expect 4 * 1 posts
-        assert len(posts) == 4
+        # RedditFetcher iterates over all configured subreddits
+        assert mock_parse.call_count == 8
+        # Since we used the same mock for all, we expect 8 * 1 posts
+        assert len(posts) == 8
         assert posts[0]["source"] == "reddit"
         assert posts[0]["title"] == "NVIDIA is mooning"
         assert "NVDA financial results" in posts[0]["content"]

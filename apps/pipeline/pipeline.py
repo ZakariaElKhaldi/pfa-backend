@@ -3,6 +3,7 @@ import logging
 from apps.sentiment.scorer import SentimentScorer
 from apps.social.cleaner import clean_text, is_quality_post
 from apps.social.fetchers.reddit import RedditFetcher
+from apps.social.fetchers.stocktwits import StockTwitsFetcher
 from apps.social.fetchers.alpaca_news import AlpacaNewsFetcher
 from apps.social.fetchers.yahoo_news import YahooNewsFetcher
 from apps.social.fetchers.google_news import GoogleNewsFetcher
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 def run_pipeline_for_ticker(symbol: str) -> None:
     """
     Full pipeline for one ticker:
-      1. Fetch posts (Reddit + StockTwits)
+      1. Fetch posts (Reddit + StockTwits + news feeds)
       2. Clean + filter low-quality
       3. Store new posts (deduplicate)
       4. Batch score unscored posts with FinBERT
@@ -37,6 +38,7 @@ def run_pipeline_for_ticker(symbol: str) -> None:
     scorer = SentimentScorer()
     fetchers = [
         RedditFetcher(),
+        StockTwitsFetcher(),
         AlpacaNewsFetcher(),
         YahooNewsFetcher(),
         GoogleNewsFetcher(),

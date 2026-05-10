@@ -1,4 +1,5 @@
 from urllib.parse import urlencode
+import secrets
 
 from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
@@ -14,9 +15,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CustomUser, UserPreference
+from .models import APIKey, CustomUser, UserPreference
 from .permissions import IsAdmin
-from .serializers import UserPreferenceSerializer, UserSerializer
+from .serializers import (
+    APIKeyCreateSerializer,
+    APIKeySerializer,
+    UserPreferenceSerializer,
+    UserSerializer,
+)
 
 
 @method_decorator(ratelimit(key="ip", rate="20/m", method="POST", block=True), name="post")
@@ -120,3 +126,46 @@ class UserPreferenceView(APIView):
             return Response(serializer.errors, status=400)
         serializer.save()
         return Response(serializer.data)
+
+
+class APIKeyListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if isinstance(request.auth, APIKey):
+            return Response({"detail": "API key management requires JWT auth."}, status=403)
+        keys = APIKey.objects.filter(user=request.user).order_by("-created_at")
+        return Response(APIKeySerializer(keys, many=True).data)
+
+    def post(self, request):
+        if isinstance(request.auth, APIKey):
+            return Response({"detail": "API key management requires JWT auth."}, status=403)
+        serializer = APIKeyCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        raw_key = secrets.token_hex(32)
+        api_key = APIKey.objects.create(
+            user=request.user,
+            key=raw_key,
+            name=serializer.validated_data["name"],
+            scopes=serializer.validated_data.get("scopes", []),
+            expires_at=serializer.validated_data.get("expires_at"),
+        )
+        data = APIKeySerializer(api_key).data
+        data["key"] = raw_key
+        return Response(data, status=201)
+
+
+class APIKeyRevokeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        if isinstance(request.auth, APIKey):
+            return Response({"detail": "API key management requires JWT auth."}, status=403)
+        key = APIKey.objects.filter(user=request.user, pk=pk, is_active=True).first()
+        if key is None:
+            return Response({"detail": "Not found."}, status=404)
+        key.is_active = False
+        key.save(update_fields=["is_active"])
+        return Response(status=204)

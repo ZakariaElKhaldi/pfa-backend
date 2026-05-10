@@ -136,6 +136,7 @@ SITE_ID = 1
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.accounts.authentication.APIKeyAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -196,6 +197,10 @@ CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS", default="http://localhost:3000"
 ).split(",")
 CORS_ALLOW_CREDENTIALS = True
+
+ENFORCE_USER_SCOPE_PERMISSIONS = config(
+    "ENFORCE_USER_SCOPE_PERMISSIONS", default=False, cast=bool
+)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

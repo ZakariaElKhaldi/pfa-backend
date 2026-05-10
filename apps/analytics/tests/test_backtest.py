@@ -74,14 +74,14 @@ class TestRunBacktest:
                 strategy="signal", params={},
             )
 
-    def test_unsupported_strategy_raises(self, deterministic_setup):
+    def test_sentiment_threshold_strategy_supported(self, deterministic_setup):
         user, _, base = deterministic_setup
-        with pytest.raises(ValueError, match="not yet implemented"):
-            run_backtest(
-                user=user, symbol="AAPL",
-                start=base, end=base + timedelta(hours=6),
-                strategy="sentiment_threshold", params={},
-            )
+        run = run_backtest(
+            user=user, symbol="AAPL",
+            start=base, end=base + timedelta(hours=6),
+            strategy="sentiment_threshold", params={},
+        )
+        assert run.status == "ok"
 
 
 @pytest.mark.django_db

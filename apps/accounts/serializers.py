@@ -1,7 +1,7 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer as BaseRegisterSerializer
 from rest_framework import serializers
 
-from .models import CustomUser, UserPreference
+from .models import APIKey, CustomUser, UserPreference
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -58,3 +58,20 @@ class CrowdSignalRegisterSerializer(BaseRegisterSerializer):
                 user.username = f"{base}_{get_random_string(4)}"
             user.save(update_fields=["username"])
         return user
+
+
+class APIKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIKey
+        fields = ["id", "name", "scopes", "created_at", "expires_at", "is_active", "last_used_at"]
+        read_only_fields = ["id", "created_at", "is_active", "last_used_at"]
+
+
+class APIKeyCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    scopes = serializers.ListField(
+        child=serializers.CharField(max_length=64),
+        required=False,
+        default=list,
+    )
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)

@@ -14,6 +14,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import ScopedAPIKeyPermission, ScopedUserPermission
 from apps.market.models import PriceSnapshot
 from apps.portfolio.models import Portfolio, Trade
 from apps.signals.models import AlertFlag, SignalSnapshot
@@ -39,6 +40,8 @@ class IgnoreClientContentNegotiation(BaseContentNegotiation):
 
 @method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
 class TickerExportView(APIView):
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["export.read"]
     content_negotiation_class = IgnoreClientContentNegotiation
     renderer_classes = [JSONRenderer]
 
@@ -151,7 +154,8 @@ class TickerExportView(APIView):
 
 @method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
 class GlobalSignalExportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["export.read"]
     content_negotiation_class = IgnoreClientContentNegotiation
     renderer_classes = [JSONRenderer]
 
@@ -218,7 +222,8 @@ class GlobalSignalExportView(APIView):
 class BulkExportView(APIView):
     """GET /api/export/bulk/?symbols=AAPL,MSFT&include=signals,prices&format=csv|json"""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["export.read"]
     content_negotiation_class = IgnoreClientContentNegotiation
     renderer_classes = [JSONRenderer]
 
@@ -336,7 +341,8 @@ class BulkExportView(APIView):
 
 @method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True), name="get")
 class PortfolioExportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["export.read"]
     content_negotiation_class = IgnoreClientContentNegotiation
     renderer_classes = [JSONRenderer]
 

@@ -24,8 +24,8 @@ FAKE_FEED.entries = [
 def test_reddit_fetcher_returns_posts(mock_parse):
     fetcher = RedditFetcher()
     posts = fetcher.fetch("AAPL")
-    # 4 subreddits * 2 entries = 8
-    assert len(posts) == 8
+    # 8 subreddits * 2 entries = 16
+    assert len(posts) == 16
     assert all(p["source"] == "reddit" for p in posts)
     assert all("external_id" in p for p in posts)
     assert all("content" in p for p in posts)

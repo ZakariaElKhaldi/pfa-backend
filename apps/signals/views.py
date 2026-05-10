@@ -1,9 +1,15 @@
 from rest_framework import generics, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin, IsAnalystOrAdmin
+from apps.accounts.permissions import (
+    IsAdmin,
+    IsAnalystOrAdmin,
+    ScopedAPIKeyPermission,
+    ScopedUserPermission,
+)
 from apps.tickers.models import Watchlist
 
 from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
@@ -15,8 +21,35 @@ from .serializers import (
 )
 
 
+class SignalPagePagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class OptionalPaginationListAPIView(generics.ListAPIView):
+    """
+    Backward compatible:
+    - no page/page_size => legacy plain array response
+    - with page or page_size => DRF paginated envelope
+    """
+
+    pagination_class = SignalPagePagination
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        if "page" in request.query_params or "page_size" in request.query_params:
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
 class TickerSignalView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get(self, request, symbol):
         snap = SignalSnapshot.objects.filter(ticker__symbol=symbol).order_by("-created_at").first()
@@ -25,18 +58,20 @@ class TickerSignalView(APIView):
         return Response(SignalSnapshotSerializer(snap).data)
 
 
-class TickerSignalHistoryView(generics.ListAPIView):
+class TickerSignalHistoryView(OptionalPaginationListAPIView):
     serializer_class = SignalSnapshotSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get_queryset(self):
         return SignalSnapshot.objects.filter(
             ticker__symbol=self.kwargs["symbol"]
-        ).order_by("-created_at")[:100]
+        ).order_by("-created_at")
 
 
 class TickerSignalExplainView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get(self, request, symbol):
         snap = SignalSnapshot.objects.filter(ticker__symbol=symbol).order_by("-created_at").first()
@@ -62,19 +97,26 @@ class TickerSignalExplainView(APIView):
         })
 
 
-class TickerSignalAccuracyView(generics.ListAPIView):
+class TickerSignalAccuracyView(OptionalPaginationListAPIView):
     serializer_class = SignalAccuracySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get_queryset(self):
         return SignalAccuracy.objects.filter(
             signal_snapshot__ticker__symbol=self.kwargs["symbol"]
-        ).order_by("-evaluated_at")[:100]
+        ).order_by("-evaluated_at")
 
 
 class AlertListView(generics.ListAPIView):
     serializer_class = AlertFlagSerializer
-    permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+    permission_classes = [
+        IsAuthenticated,
+        IsAnalystOrAdmin,
+        ScopedAPIKeyPermission,
+        ScopedUserPermission,
+    ]
+    required_scopes = ["alerts.read"]
 
     def get_queryset(self):
         return AlertFlag.objects.filter(resolved=False).order_by("-created_at")
@@ -111,10 +153,10 @@ class DecisionLogDetailView(generics.RetrieveAPIView):
     queryset = DecisionLog.objects.all()
 
 
-class RecentSignalsView(generics.ListAPIView):
+class RecentSignalsView(OptionalPaginationListAPIView):
     serializer_class = SignalSnapshotSerializer
-    pagination_class = None
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get_queryset(self):
         try:
@@ -139,7 +181,8 @@ class RecentSignalsView(generics.ListAPIView):
 
 
 class GlobalAccuracyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["signals.read"]
 
     def get(self, request):
         records = SignalAccuracy.objects.filter(accuracy_24h__isnull=False)

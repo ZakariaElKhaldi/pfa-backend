@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.market.models import PriceSnapshot
+from apps.accounts.permissions import ScopedAPIKeyPermission, ScopedUserPermission
 from apps.tickers.models import Ticker
 
 from .models import Portfolio, Position, Trade
@@ -28,7 +29,8 @@ def get_latest_price(ticker: Ticker) -> Decimal:
 
 
 class PortfolioView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["portfolio.read"]
 
     def get(self, request):
         portfolio = get_portfolio(request.user)
@@ -36,7 +38,8 @@ class PortfolioView(APIView):
 
 
 class BuyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["portfolio.write"]
 
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
@@ -101,7 +104,8 @@ class BuyView(APIView):
 
 
 class SellView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["portfolio.write"]
 
     def post(self, request):
         symbol = request.data.get("symbol", "").upper()
@@ -170,7 +174,8 @@ class SellView(APIView):
 
 
 class PortfolioSummaryView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["portfolio.read"]
 
     def get(self, request):
         portfolio = get_portfolio(request.user)
@@ -200,7 +205,8 @@ class PortfolioSummaryView(APIView):
 
 class TradeListView(generics.ListAPIView):
     serializer_class = TradeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["portfolio.read"]
     pagination_class = None
 
     def get_queryset(self):

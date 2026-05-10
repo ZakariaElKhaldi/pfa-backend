@@ -41,3 +41,4 @@ async def test_consumer_disconnects_cleanly():
     connected, _ = await communicator.connect()
     assert connected
     await communicator.disconnect()
+

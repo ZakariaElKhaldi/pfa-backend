@@ -42,7 +42,7 @@ def test_list_posts_for_ticker(client, ticker):
     )
     response = client.get("/api/tickers/AAPL/posts/")
     assert response.status_code == 200
-    assert response.json()["count"] == 1
+    assert len(response.json()) == 1
 
 
 @pytest.mark.django_db

@@ -5,6 +5,10 @@ class SignalConsumer(AsyncJsonWebsocketConsumer):
     GROUP_NAME = "signals_global"
 
     async def connect(self):
+        user = self.scope.get("user")
+        if not user or not user.is_authenticated:
+            await self.close(code=4401)
+            return
         await self.channel_layer.group_add(self.GROUP_NAME, self.channel_name)
         await self.accept()
 

@@ -1,6 +1,9 @@
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.accounts.permissions import ScopedAPIKeyPermission, ScopedUserPermission
 
 from .models import PriceSnapshot
 from .serializers import PriceSnapshotSerializer
@@ -11,6 +14,8 @@ from .indicators import (
 
 class TickerPriceListView(generics.ListAPIView):
     serializer_class = PriceSnapshotSerializer
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["market.read"]
 
     def get_queryset(self):
         return PriceSnapshot.objects.filter(ticker__symbol=self.kwargs["symbol"]).order_by(
@@ -19,6 +24,9 @@ class TickerPriceListView(generics.ListAPIView):
 
 
 class TickerIndicatorsView(APIView):
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["market.read"]
+
     def get(self, request, symbol):
         prices_qs = PriceSnapshot.objects.filter(
             ticker__symbol=symbol
@@ -47,6 +55,8 @@ class TickerIndicatorsView(APIView):
 
 class TickerQuoteView(APIView):
     """Returns the single most recent PriceSnapshot for a ticker."""
+    permission_classes = [IsAuthenticated, ScopedAPIKeyPermission, ScopedUserPermission]
+    required_scopes = ["market.read"]
 
     def get(self, request, symbol):
         snap = (
