@@ -38,7 +38,13 @@ class StrategyToggleView(APIView):
             rule = StrategyRule.objects.get(pk=pk, user=request.user)
         except StrategyRule.DoesNotExist:
             return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-        rule.is_active = not rule.is_active
+        requested = request.data.get("is_active", None)
+        rule.is_active = bool(requested) if requested is not None else not rule.is_active
+        if rule.is_active and (not rule.conditions.exists() or not rule.actions.exists()):
+            return Response(
+                {"detail": "A strategy needs at least one condition and one action before activation."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         rule.save(update_fields=["is_active"])
         return Response(StrategyRuleSerializer(rule).data)
 

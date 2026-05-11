@@ -6,6 +6,7 @@ from apps.social.fetchers.reddit import RedditFetcher
 from apps.social.fetchers.alpaca_news import AlpacaNewsFetcher
 from apps.social.fetchers.yahoo_news import YahooNewsFetcher
 from apps.social.fetchers.google_news import GoogleNewsFetcher
+from apps.social.fetchers.stocktwits import StockTwitsFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def run_pipeline_for_ticker(symbol: str) -> None:
     scorer = SentimentScorer()
     fetchers = [
         (RedditFetcher(), None),
+        (StockTwitsFetcher(), None),
         (AlpacaNewsFetcher(), None),
         (YahooNewsFetcher(), None),
         (GoogleNewsFetcher(), ticker.name),
@@ -54,17 +56,25 @@ def run_pipeline_for_ticker(symbol: str) -> None:
             continue
 
         for post_data in raw_posts:
-            cleaned = clean_text(post_data["content"])
+            if not post_data.get("source") or not post_data.get("external_id") or not post_data.get("posted_at"):
+                logger.warning("%s returned incomplete post for %s", fetcher.__class__.__name__, symbol)
+                continue
+
+            content = post_data.get("content") or post_data.get("title") or ""
+            if not content:
+                continue
+
+            cleaned = clean_text(content)
             if not is_quality_post(cleaned):
                 continue
             SocialPost.objects.get_or_create(
                 ticker=ticker,
-                source=post_data["source"],
-                external_id=str(post_data["external_id"])[:200],
+                source=post_data.get("source", "")[:20],
+                external_id=str(post_data.get("external_id") or "")[:200],
                 defaults={
                     "title": str(post_data.get("title") or "")[:500] if post_data.get("title") else None,
                     "url": str(post_data.get("url") or "")[:1000] if post_data.get("url") else None,
-                    "content": post_data["content"],
+                    "content": content,
                     "cleaned_text": cleaned,
                     "posted_at": post_data["posted_at"],
                 },
@@ -156,6 +166,24 @@ def run_pipeline_for_ticker(symbol: str) -> None:
         prediction_confidence=prediction_confidence,
         feature_importances=feature_importances,
     )
+
+    try:
+        from apps.events.types import SIGNAL_GENERATED
+        from apps.strategies.engine import evaluate_strategies_for_event
+
+        evaluate_strategies_for_event(SIGNAL_GENERATED, {
+            "ticker": symbol,
+            "signal": snapshot.signal,
+            "sentiment": snapshot.sentiment,
+            "momentum": snapshot.momentum,
+            "consistency": snapshot.consistency,
+            "post_count": snapshot.post_count,
+            "prediction_method": snapshot.prediction_method,
+            "prediction_confidence": snapshot.prediction_confidence,
+            "signal_id": snapshot.id,
+        })
+    except Exception as exc:
+        logger.exception("Strategy evaluation failed for %s: %s", symbol, exc)
 
     # Decision logging
     decision_data = result.get("_decision_data", {})

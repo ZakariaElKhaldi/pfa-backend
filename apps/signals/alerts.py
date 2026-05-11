@@ -73,4 +73,18 @@ def check_and_create_alert(ticker, signal_data: dict) -> AlertFlag | None:
         "consistency": consistency,
     })
 
+    try:
+        from apps.strategies.engine import evaluate_strategies_for_event
+
+        evaluate_strategies_for_event(ALERT_CREATED, {
+            "ticker": ticker.symbol,
+            "alert_type": alert_type,
+            "sentiment": sentiment,
+            "momentum": momentum,
+            "consistency": consistency,
+            "alert_id": alert.id,
+        })
+    except Exception as exc:
+        logger.exception("Strategy evaluation failed for alert %s: %s", alert.id, exc)
+
     return alert

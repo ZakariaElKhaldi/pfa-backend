@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 MIN_TRAINING_SAMPLES = 30
 LABEL_MAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
 REVERSE_LABEL_MAP = {"HOLD": 0, "BUY": 1, "SELL": 2}
+ACTUAL_DIRECTION_LABEL_MAP = {"FLAT": 0, "UP": 1, "DOWN": 2}
 
 # Canonical feature order — must match training command feature list
 FEATURE_NAMES = [

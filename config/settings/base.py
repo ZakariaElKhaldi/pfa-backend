@@ -117,9 +117,10 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = config(
 )
 
 CELERY_BEAT_SCHEDULE = {
-    "pipeline-run-every-5min": {
+    "pipeline-run-every-15min": {
         "task": "pipeline.run_pipeline",
-        "schedule": timedelta(minutes=5),
+        "schedule": timedelta(minutes=15),
+        "options": {"expires": 60},
     },
     "signals-evaluate-accuracy-hourly": {
         "task": "signals.evaluate_accuracy",
@@ -217,6 +218,12 @@ USE_TZ = True
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5174")
 SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalSocialAdapter"
 ACCOUNT_ADAPTER = "apps.accounts.adapters.CrowdSignalAccountAdapter"
+
+# ---------- External Social Fetchers ----------
+REDDIT_CLIENT_ID = config("REDDIT_CLIENT_ID", default="")
+REDDIT_CLIENT_SECRET = config("REDDIT_CLIENT_SECRET", default="")
+REDDIT_USER_AGENT = config("REDDIT_USER_AGENT", default="")
+YOUTUBE_API_KEY = config("YOUTUBE_API_KEY", default="")
 
 # ---------- Rate Limiting ----------
 RATELIMIT_USE_CACHE = "default"

@@ -2,13 +2,13 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Create the Celery Beat schedule for the ingestion pipeline (runs every 5 minutes)"
+    help = "Create the Celery Beat schedule for the ingestion pipeline (runs every 15 minutes)"
 
     def handle(self, *args, **options):
         from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
         schedule, _ = IntervalSchedule.objects.get_or_create(
-            every=5,
+            every=15,
             period=IntervalSchedule.MINUTES,
         )
         task, created = PeriodicTask.objects.update_or_create(
@@ -20,4 +20,4 @@ class Command(BaseCommand):
             },
         )
         verb = "Created" if created else "Updated"
-        self.stdout.write(self.style.SUCCESS(f"{verb} pipeline schedule: every 5 minutes"))
+        self.stdout.write(self.style.SUCCESS(f"{verb} pipeline schedule: every 15 minutes"))

@@ -11,9 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class AlpacaNewsFetcher(BaseFetcher):
+    source = "news_alpaca"
+
     def __init__(self):
         self.api_key = config("ALPACA_API_KEY", default="")
         self.secret_key = config("ALPACA_SECRET_KEY", default="")
+        if not self.api_key or not self.secret_key:
+            self.client = None
+            return
         try:
             self.client = NewsClient(self.api_key, self.secret_key)
         except Exception as e:
@@ -40,7 +45,10 @@ class AlpacaNewsFetcher(BaseFetcher):
                     "title": item.headline,
                     "url": item.url,
                     "content": item.summary,
-                    "posted_at": item.created_at
+                    "posted_at": item.created_at,
+                    "metadata": {
+                        "publisher": getattr(item, "source", None),
+                    },
                 })
             return posts
         except Exception as e:

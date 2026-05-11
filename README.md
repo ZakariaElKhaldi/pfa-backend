@@ -129,11 +129,12 @@ If no superuser exists, `seed.py` exits with:
 `No superuser found. Create one with python manage.py createsuperuser then rerun python seed.py.`
 
 ### Hybrid Realtime Runbook (Option 2)
-Run these 4 processes in local/dev:
+Run these 5 processes in local/dev:
 1. Daphne ASGI server
 2. Celery worker
 3. Celery beat (2-minute fallback ingestion)
 4. Alpaca news websocket daemon (`run_news_stream`)
+5. Alpaca market trade stream daemon (`run_alpaca_stream`)
 
 Manual start:
 ```bash
@@ -142,6 +143,7 @@ DJANGO_SETTINGS_MODULE=config.settings.local uv run daphne -b 0.0.0.0 -p 8000 co
 DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config worker -l info
 DJANGO_SETTINGS_MODULE=config.settings.local uv run celery -A config beat -l info
 DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py run_news_stream
+DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py run_alpaca_stream
 ```
 
 One-command start for everything:
@@ -151,8 +153,10 @@ cd backend
 ```
 
 Notes:
-- `pipeline.run_pipeline` now runs every **2 minutes** as fallback ingestion for non-stream sources.
+- `pipeline.run_pipeline` now runs every **15 minutes** as fallback ingestion for non-stream sources.
 - Alpaca news is ingested continuously by `run_news_stream`.
+- Alpaca market prices are trade-tick streamed by `run_alpaca_stream` for visible chart symbols only.
+- No-compromise cross-process market WebSocket delivery requires Redis-backed Channels. Set `REDIS_HOST` before starting Daphne and `run_alpaca_stream`; local in-memory Channels cannot deliver daemon pushes to browser sockets.
 - `CELERY_WORKER_MAX_TASKS_PER_CHILD` defaults to `1` (configurable via env var).
 - WebSockets use JWT query param auth for `/ws/signals/` in local/dev (e.g. `?token=<access_jwt>`).
 

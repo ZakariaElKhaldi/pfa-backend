@@ -19,8 +19,9 @@ def ticker(db):
 @patch("apps.pipeline.pipeline.GoogleNewsFetcher")
 @patch("apps.pipeline.pipeline.YahooNewsFetcher")
 @patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
 @patch("apps.pipeline.pipeline.RedditFetcher")
-def test_pipeline_stores_new_posts(MockReddit, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
+def test_pipeline_stores_new_posts(MockReddit, MockStockTwits, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
     now = timezone.now()
 
     MockReddit.return_value.fetch.return_value = [
@@ -31,6 +32,7 @@ def test_pipeline_stores_new_posts(MockReddit, MockAlpaca, MockYahoo, MockGoogle
             "posted_at": now,
         }
     ]
+    MockStockTwits.return_value.fetch.return_value = []
     MockAlpaca.return_value.fetch.return_value = []
     MockYahoo.return_value.fetch.return_value = []
     MockGoogle.return_value.fetch.return_value = []
@@ -52,8 +54,50 @@ def test_pipeline_stores_new_posts(MockReddit, MockAlpaca, MockYahoo, MockGoogle
 @patch("apps.pipeline.pipeline.GoogleNewsFetcher")
 @patch("apps.pipeline.pipeline.YahooNewsFetcher")
 @patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
 @patch("apps.pipeline.pipeline.RedditFetcher")
-def test_pipeline_deduplicates_posts(MockReddit, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
+def test_pipeline_stores_stocktwits_posts(
+    MockReddit,
+    MockStockTwits,
+    MockAlpaca,
+    MockYahoo,
+    MockGoogle,
+    MockScorer,
+    mock_push,
+    ticker,
+):
+    now = timezone.now()
+    MockReddit.return_value.fetch.return_value = []
+    MockStockTwits.return_value.fetch.return_value = [
+        {
+            "source": "stocktwits",
+            "external_id": "st001",
+            "content": "$MSFT Azure growth keeps looking bullish this quarter",
+            "posted_at": now,
+        }
+    ]
+    MockAlpaca.return_value.fetch.return_value = []
+    MockYahoo.return_value.fetch.return_value = []
+    MockGoogle.return_value.fetch.return_value = []
+    MockScorer.return_value.score_batch.return_value = [
+        {"positive_prob": 0.7, "negative_prob": 0.1, "neutral_prob": 0.2, "composite_score": 0.6, "label": "bullish"}
+    ]
+
+    run_pipeline_for_ticker("MSFT")
+    run_pipeline_for_ticker("MSFT")
+
+    assert SocialPost.objects.filter(ticker=ticker, source="stocktwits").count() == 1
+
+
+@pytest.mark.django_db
+@patch("apps.market.utils.push_market_update")
+@patch("apps.pipeline.pipeline.SentimentScorer")
+@patch("apps.pipeline.pipeline.GoogleNewsFetcher")
+@patch("apps.pipeline.pipeline.YahooNewsFetcher")
+@patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
+@patch("apps.pipeline.pipeline.RedditFetcher")
+def test_pipeline_deduplicates_posts(MockReddit, MockStockTwits, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
     now = timezone.now()
     post_data = {
         "source": "reddit",
@@ -62,6 +106,7 @@ def test_pipeline_deduplicates_posts(MockReddit, MockAlpaca, MockYahoo, MockGoog
         "posted_at": now,
     }
     MockReddit.return_value.fetch.return_value = [post_data]
+    MockStockTwits.return_value.fetch.return_value = []
     MockAlpaca.return_value.fetch.return_value = []
     MockYahoo.return_value.fetch.return_value = []
     MockGoogle.return_value.fetch.return_value = []
@@ -81,9 +126,11 @@ def test_pipeline_deduplicates_posts(MockReddit, MockAlpaca, MockYahoo, MockGoog
 @patch("apps.pipeline.pipeline.GoogleNewsFetcher")
 @patch("apps.pipeline.pipeline.YahooNewsFetcher")
 @patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
 @patch("apps.pipeline.pipeline.RedditFetcher")
-def test_pipeline_continues_when_fetcher_fails(MockReddit, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
+def test_pipeline_continues_when_fetcher_fails(MockReddit, MockStockTwits, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
     MockReddit.return_value.fetch.side_effect = Exception("Reddit down")
+    MockStockTwits.return_value.fetch.return_value = []
     MockAlpaca.return_value.fetch.return_value = []
     MockYahoo.return_value.fetch.return_value = []
     MockGoogle.return_value.fetch.return_value = []
@@ -102,8 +149,9 @@ def test_pipeline_continues_when_fetcher_fails(MockReddit, MockAlpaca, MockYahoo
 @patch("apps.pipeline.pipeline.GoogleNewsFetcher")
 @patch("apps.pipeline.pipeline.YahooNewsFetcher")
 @patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
 @patch("apps.pipeline.pipeline.RedditFetcher")
-def test_pipeline_stores_individual_probabilities(MockReddit, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
+def test_pipeline_stores_individual_probabilities(MockReddit, MockStockTwits, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
     now = timezone.now()
 
     MockReddit.return_value.fetch.return_value = [
@@ -114,6 +162,7 @@ def test_pipeline_stores_individual_probabilities(MockReddit, MockAlpaca, MockYa
             "posted_at": now,
         }
     ]
+    MockStockTwits.return_value.fetch.return_value = []
     MockAlpaca.return_value.fetch.return_value = []
     MockYahoo.return_value.fetch.return_value = []
     MockGoogle.return_value.fetch.return_value = []
@@ -143,8 +192,9 @@ def test_pipeline_stores_individual_probabilities(MockReddit, MockAlpaca, MockYa
 @patch("apps.pipeline.pipeline.GoogleNewsFetcher")
 @patch("apps.pipeline.pipeline.YahooNewsFetcher")
 @patch("apps.pipeline.pipeline.AlpacaNewsFetcher")
+@patch("apps.pipeline.pipeline.StockTwitsFetcher")
 @patch("apps.pipeline.pipeline.RedditFetcher")
-def test_pipeline_uses_batch_scoring(MockReddit, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
+def test_pipeline_uses_batch_scoring(MockReddit, MockStockTwits, MockAlpaca, MockYahoo, MockGoogle, MockScorer, mock_push, ticker):
     now = timezone.now()
 
     MockReddit.return_value.fetch.return_value = [
@@ -156,6 +206,7 @@ def test_pipeline_uses_batch_scoring(MockReddit, MockAlpaca, MockYahoo, MockGoog
         }
         for i in range(3)
     ]
+    MockStockTwits.return_value.fetch.return_value = []
     MockAlpaca.return_value.fetch.return_value = []
     MockYahoo.return_value.fetch.return_value = []
     MockGoogle.return_value.fetch.return_value = []

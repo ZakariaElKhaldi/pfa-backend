@@ -1,7 +1,6 @@
 import pytest
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
-
 from config.asgi import application
 
 
@@ -41,4 +40,3 @@ async def test_consumer_disconnects_cleanly():
     connected, _ = await communicator.connect()
     assert connected
     await communicator.disconnect()
-

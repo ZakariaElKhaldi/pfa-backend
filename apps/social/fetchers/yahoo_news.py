@@ -14,6 +14,8 @@ YAHOO_RSS_URL = "https://finance.yahoo.com/rss/headline?s={symbol}"
 
 
 class YahooNewsFetcher(BaseFetcher):
+    source = "news_yahoo"
+
     def fetch(self, symbol: str) -> list[dict]:
         url = YAHOO_RSS_URL.format(symbol=symbol)
         try:
@@ -26,7 +28,12 @@ class YahooNewsFetcher(BaseFetcher):
                     "title": entry.get("title", ""),
                     "url": entry.get("link", ""),
                     "content": entry.get("summary", ""),
-                    "posted_at": self._parse_date(entry.get("published"))
+                    "posted_at": self._parse_date(entry.get("published")),
+                    "metadata": {
+                        "publisher": entry.get("source", {}).get("title")
+                        if isinstance(entry.get("source"), dict)
+                        else None,
+                    },
                 })
             return posts
         except Exception as e:

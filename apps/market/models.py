@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class PriceSnapshot(models.Model):
@@ -31,3 +32,39 @@ class PriceSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.ticker.symbol}@{self.price}"
+
+
+class TradeTick(models.Model):
+    ticker = models.ForeignKey("tickers.Ticker", on_delete=models.CASCADE, related_name="trade_ticks")
+    price = models.DecimalField(max_digits=12, decimal_places=4)
+    size = models.BigIntegerField(default=0)
+    exchange = models.CharField(max_length=16, blank=True)
+    trade_id = models.CharField(max_length=128, blank=True, db_index=True)
+    conditions = models.JSONField(default=list, blank=True)
+    timestamp = models.DateTimeField(db_index=True)
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["ticker", "-timestamp"]),
+            models.Index(fields=["ticker", "trade_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticker.symbol} trade @{self.price}"
+
+
+class ActiveMarketSubscription(models.Model):
+    symbol = models.CharField(max_length=16, db_index=True)
+    channel_name = models.CharField(max_length=255, unique=True)
+    connected_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["symbol", "expires_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.symbol}:{self.channel_name}"

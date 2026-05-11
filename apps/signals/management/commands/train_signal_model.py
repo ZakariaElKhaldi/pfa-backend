@@ -2,11 +2,10 @@ import os
 import logging
 
 import numpy as np
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.signals.ml.trainer import REVERSE_LABEL_MAP, SignalModelTrainer
-from apps.signals.models import SignalSnapshot
+from apps.signals.ml.trainer import ACTUAL_DIRECTION_LABEL_MAP, SignalModelTrainer
+from apps.signals.models import SignalAccuracy
 from apps.tickers.models import Ticker
 
 logger = logging.getLogger(__name__)
@@ -35,22 +34,30 @@ class Command(BaseCommand):
             self.stderr.write(f"Ticker {symbol} not found")
             return
 
-        # Build training data from historical signal snapshots
-        snapshots = SignalSnapshot.objects.filter(ticker=ticker).order_by("created_at")[
-            :lookback
-        ]
-        if snapshots.count() < 50:
+        # Build training data from evaluated historical outcomes, not rule outputs.
+        accuracy_records = (
+            SignalAccuracy.objects.filter(signal_snapshot__ticker=ticker)
+            .select_related("signal_snapshot")
+            .order_by("signal_snapshot__created_at")[:lookback]
+        )
+        if accuracy_records.count() < 50:
             self.stderr.write(
-                f"Insufficient data for {symbol}: {snapshots.count()} snapshots (need 50+)"
+                f"Insufficient data for {symbol}: {accuracy_records.count()} evaluated signals (need 50+)"
             )
             return
 
-        # Build feature/label pairs from consecutive snapshots
+        # Build feature/label pairs from each snapshot and its observed market direction.
         X_list, y_list = [], []
-        snapshot_list = list(snapshots)
-        for i in range(len(snapshot_list) - 1):
-            current = snapshot_list[i]
-            next_snap = snapshot_list[i + 1]
+        for record in accuracy_records:
+            current = record.signal_snapshot
+            label = ACTUAL_DIRECTION_LABEL_MAP.get(record.actual_direction)
+            if label is None:
+                logger.warning(
+                    "Skipping %s accuracy record with unknown direction: %s",
+                    symbol,
+                    record.actual_direction,
+                )
+                continue
             features = [
                 current.sentiment,
                 current.momentum,
@@ -61,9 +68,14 @@ class Command(BaseCommand):
                 current.time_decay_score or 0.0,
                 current.source_weighted_score or 0.0,
             ]
-            label = REVERSE_LABEL_MAP.get(next_snap.signal, 0)
             X_list.append(features)
             y_list.append(label)
+
+        if len(X_list) < 50:
+            self.stderr.write(
+                f"Insufficient usable data for {symbol}: {len(X_list)} evaluated signals (need 50+)"
+            )
+            return
 
         X = np.array(X_list)
         y = np.array(y_list)
@@ -82,4 +94,3 @@ class Command(BaseCommand):
         os.makedirs(output_dir, exist_ok=True)
         path = os.path.join(output_dir, f"{symbol}.joblib")
         trainer.save_model(model, path)
-        self.stdout.write(f"Model saved to {path}")

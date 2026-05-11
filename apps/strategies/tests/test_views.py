@@ -3,7 +3,8 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import CustomUser
-from apps.strategies.models import RuleAction, RuleCondition, StrategyRule
+from apps.strategies.engine import evaluate_strategies_for_event
+from apps.strategies.models import RuleAction, RuleCondition, StrategyExecution, StrategyRule
 
 
 @pytest.fixture
@@ -65,7 +66,18 @@ class TestStrategyCRUD:
 
     def test_toggle_rule(self, auth_client, user):
         rule = StrategyRule.objects.create(user=user, name="Rule 1", is_active=False)
+        RuleCondition.objects.create(rule=rule, field="signal", operator="eq", value="BUY", order=0)
+        RuleAction.objects.create(rule=rule, action_type="notify", config={}, order=0)
         resp = auth_client.post(f"/api/strategies/{rule.id}/toggle/")
+        assert resp.status_code == 200
+        rule.refresh_from_db()
+        assert rule.is_active is True
+
+    def test_toggle_rule_honors_explicit_state(self, auth_client, user):
+        rule = StrategyRule.objects.create(user=user, name="Rule 1", is_active=True)
+        RuleCondition.objects.create(rule=rule, field="signal", operator="eq", value="BUY", order=0)
+        RuleAction.objects.create(rule=rule, action_type="notify", config={}, order=0)
+        resp = auth_client.post(f"/api/strategies/{rule.id}/toggle/", {"is_active": True}, format="json")
         assert resp.status_code == 200
         rule.refresh_from_db()
         assert rule.is_active is True
@@ -149,3 +161,67 @@ class TestStrategyCRUD:
         assert patch_resp.status_code == 200
         assert patch_resp.data["name"] == "Renamed"
         assert len(patch_resp.data["conditions"]) == 1  # conditions preserved
+
+    def test_list_includes_execution_summary(self, auth_client, user):
+        rule = StrategyRule.objects.create(user=user, name="Rule 1", is_active=True)
+        StrategyExecution.objects.create(
+            rule=rule,
+            event_type="signal_generated",
+            event_data={"ticker": "AAPL"},
+            conditions_matched=[{"field": "signal"}],
+            actions_taken=["notify:AAPL"],
+            success=True,
+        )
+
+        resp = auth_client.get("/api/strategies/")
+
+        assert resp.status_code == 200
+        assert resp.data[0]["execution_count"] == 1
+        assert resp.data[0]["last_execution_at"] is not None
+        assert resp.data[0]["last_triggered_at"] is not None
+        assert resp.data[0]["health"] == "working"
+
+    def test_rejects_invalid_condition_operator(self, auth_client):
+        resp = auth_client.post("/api/strategies/", {
+            "name": "Bad Rule",
+            "conditions": [
+                {"field": "signal", "operator": "gt", "value": "BUY", "order": 0},
+            ],
+            "actions": [{"action_type": "notify", "config": {}, "order": 0}],
+        }, format="json")
+
+        assert resp.status_code == 400
+
+    def test_rejects_auto_trade_action(self, auth_client):
+        resp = auth_client.post("/api/strategies/", {
+            "name": "Bad Action",
+            "conditions": [
+                {"field": "signal", "operator": "eq", "value": "BUY", "order": 0},
+            ],
+            "actions": [{"action_type": "auto_trade", "config": {}, "order": 0}],
+        }, format="json")
+
+        assert resp.status_code == 400
+
+    def test_engine_logs_triggered_and_non_triggered_evaluations(self, user, ticker):
+        matched = StrategyRule.objects.create(user=user, name="Matched", is_active=True)
+        matched.tickers.set([ticker])
+        RuleCondition.objects.create(rule=matched, field="signal", operator="eq", value="BUY", order=0)
+        RuleAction.objects.create(rule=matched, action_type="notify", config={}, order=0)
+
+        missed = StrategyRule.objects.create(user=user, name="Missed", is_active=True)
+        missed.tickers.set([ticker])
+        RuleCondition.objects.create(rule=missed, field="signal", operator="eq", value="SELL", order=0)
+        RuleAction.objects.create(rule=missed, action_type="notify", config={}, order=0)
+
+        executions = evaluate_strategies_for_event("signal_generated", {
+            "ticker": ticker.symbol,
+            "signal": "BUY",
+            "sentiment": 0.8,
+        })
+
+        assert len(executions) == 2
+        matched_execution = StrategyExecution.objects.get(rule=matched)
+        missed_execution = StrategyExecution.objects.get(rule=missed)
+        assert matched_execution.actions_taken
+        assert missed_execution.actions_taken == []

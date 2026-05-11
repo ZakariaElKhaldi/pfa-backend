@@ -41,5 +41,8 @@ uv run celery -A config beat -l info &
 echo "Starting Alpaca news stream daemon..."
 uv run python manage.py run_news_stream &
 
+echo "Starting Alpaca market trade stream daemon..."
+uv run python manage.py run_alpaca_stream &
+
 echo "All backend processes started. Press Ctrl+C to stop all."
 wait

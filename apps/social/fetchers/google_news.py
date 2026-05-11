@@ -62,6 +62,8 @@ def build_google_news_query(symbol: str, company_name: str | None = None) -> str
 
 
 class GoogleNewsFetcher(BaseFetcher):
+    source = "news_google"
+
     def fetch(self, symbol: str, company_name: str | None = None) -> list[dict]:
         url = GOOGLE_RSS_URL.format(query=build_google_news_query(symbol, company_name))
         try:
@@ -78,7 +80,13 @@ class GoogleNewsFetcher(BaseFetcher):
                     "title": title,
                     "url": entry.get("link", ""),
                     "content": content,
-                    "posted_at": self._parse_date(entry.get("published"))
+                    "posted_at": self._parse_date(entry.get("published")),
+                    "metadata": {
+                        "publisher": entry.get("source", {}).get("title")
+                        if isinstance(entry.get("source"), dict)
+                        else None,
+                        "best_effort": True,
+                    },
                 })
             return posts
         except Exception as e:

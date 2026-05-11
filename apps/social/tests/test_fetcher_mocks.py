@@ -1,35 +1,45 @@
 import pytest
+import requests
 from unittest.mock import MagicMock, patch
 from apps.social.fetchers.reddit import RedditFetcher
 from apps.social.fetchers.stocktwits import StockTwitsFetcher
 
 class TestFetcherMocks:
-    @patch("feedparser.parse")
-    def test_reddit_fetcher(self, mock_parse):
-        # Mock feedparser response
-        mock_feed = MagicMock()
-        mock_feed.entries = [
-            {
-                "id": "post1",
-                "title": "NVIDIA is mooning",
-                "summary": "Check out NVDA financial results.",
-                "published": "Wed, 02 Apr 2026 20:00:00 GMT"
+    @patch("apps.social.fetchers.reddit.requests.post")
+    @patch("apps.social.fetchers.base.requests.request")
+    def test_reddit_fetcher(self, mock_request, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.raise_for_status = lambda: None
+        mock_post.return_value.json.return_value = {"access_token": "token"}
+        mock_request.return_value.status_code = 200
+        mock_request.return_value.raise_for_status = lambda: None
+        mock_request.return_value.json.return_value = {
+            "data": {
+                "after": None,
+                "children": [
+                    {
+                        "data": {
+                            "name": "post1",
+                            "title": "NVIDIA is mooning",
+                            "selftext": "Check out NVDA financial results.",
+                            "url": "https://reddit.com/r/stocks/comments/post1",
+                            "created_utc": 1775160000,
+                        }
+                    }
+                ],
             }
-        ]
-        mock_parse.return_value = mock_feed
-        
-        fetcher = RedditFetcher()
+        }
+
+        fetcher = RedditFetcher("client", "secret", "crowdsignal-test/1.0")
         posts = fetcher.fetch("NVDA")
-        
-        # RedditFetcher iterates over all configured subreddits
-        assert mock_parse.call_count == 8
-        # Since we used the same mock for all, we expect 8 * 1 posts
+
+        assert mock_request.call_count == 8
         assert len(posts) == 8
         assert posts[0]["source"] == "reddit"
         assert posts[0]["title"] == "NVIDIA is mooning"
         assert "NVDA financial results" in posts[0]["content"]
 
-    @patch("requests.get")
+    @patch("apps.social.fetchers.base.requests.request")
     def test_stocktwits_fetcher(self, mock_get):
         # Mock requests response
         mock_response = MagicMock()
@@ -53,9 +63,9 @@ class TestFetcherMocks:
         assert posts[0]["content"] == "$NVDA looking bullish!"
         assert posts[0]["external_id"] == "12345"
 
-    @patch("requests.get")
+    @patch("apps.social.fetchers.base.requests.request")
     def test_stocktwits_error_handling(self, mock_get):
-        mock_get.side_effect = Exception("API Down")
+        mock_get.side_effect = requests.RequestException("API Down")
         
         fetcher = StockTwitsFetcher()
         posts = fetcher.fetch("NVDA")
