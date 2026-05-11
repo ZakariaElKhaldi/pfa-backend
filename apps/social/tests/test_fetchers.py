@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 from apps.social.fetchers.google_news import GoogleNewsFetcher, is_relevant_google_post
-from apps.social.fetchers.reddit import RedditFetcher
+from apps.social.fetchers.reddit import PUBLIC_SUBREDDITS, RedditFetcher
 from apps.social.fetchers.stocktwits import StockTwitsFetcher
 
 FAKE_REDDIT_RESPONSE = {
@@ -60,14 +60,48 @@ def test_reddit_fetcher_returns_posts(mock_request, mock_post):
 
 @patch("apps.social.fetchers.reddit.requests.post", side_effect=requests.Timeout("network error"))
 def test_reddit_fetcher_skips_on_oauth_error(mock_post):
-    fetcher = RedditFetcher("client", "secret", "crowdsignal-test/1.0")
+    fetcher = RedditFetcher(
+        "client",
+        "secret",
+        "crowdsignal-test/1.0",
+        allow_public_fallback=False,
+    )
     posts = fetcher.fetch("AAPL")
     assert posts == []
 
 
 def test_reddit_fetcher_skips_without_credentials():
-    fetcher = RedditFetcher("", "", "")
+    fetcher = RedditFetcher("", "", "", allow_public_fallback=False)
     posts = fetcher.fetch("AAPL")
+    assert posts == []
+
+
+@patch("apps.social.fetchers.reddit.time.sleep", return_value=None)
+@patch("apps.social.fetchers.base.requests.request")
+def test_reddit_fetcher_public_json_fallback_without_oauth(mock_request, mock_sleep):
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.raise_for_status = lambda: None
+    mock_request.return_value.json.return_value = FAKE_REDDIT_RESPONSE
+
+    fetcher = RedditFetcher("", "", "crowdsignal-test/1.0", public_delay_seconds=2)
+    posts = fetcher.fetch("AAPL")
+
+    assert len(posts) == len(PUBLIC_SUBREDDITS) * 2
+    assert all(post["metadata"]["fetch_mode"] == "public_json" for post in posts)
+    assert mock_request.call_count == len(PUBLIC_SUBREDDITS)
+    assert mock_sleep.call_count == len(PUBLIC_SUBREDDITS) - 1
+    assert mock_request.call_args.kwargs["headers"]["User-Agent"] == "crowdsignal-test/1.0"
+    assert mock_request.call_args.kwargs["params"]["limit"] == 25
+
+
+@patch("apps.social.fetchers.base.requests.request")
+def test_reddit_fetcher_public_json_fallback_stops_cleanly_on_429(mock_request):
+    mock_request.return_value.status_code = 429
+    mock_request.return_value.headers = {"Retry-After": "60"}
+
+    fetcher = RedditFetcher("", "", "crowdsignal-test/1.0", public_delay_seconds=0)
+    posts = fetcher.fetch("AAPL")
+
     assert posts == []
 
 

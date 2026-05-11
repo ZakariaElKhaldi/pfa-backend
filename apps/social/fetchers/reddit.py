@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from datetime import timezone as dt_timezone
 
@@ -21,6 +22,14 @@ SUBREDDITS = [
 ]
 TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 SEARCH_URL = "https://oauth.reddit.com/r/{subreddit}/search.json"
+PUBLIC_SEARCH_URL = "https://www.reddit.com/r/{subreddit}/search.json"
+PUBLIC_SUBREDDITS = [
+    "wallstreetbets",
+    "stocks",
+    "investing",
+    "StockMarket",
+]
+PUBLIC_REQUEST_DELAY_SECONDS = 2.0
 
 
 class RedditFetcher(BaseFetcher):
@@ -34,6 +43,8 @@ class RedditFetcher(BaseFetcher):
         *,
         limit: int = 100,
         max_pages: int = 1,
+        allow_public_fallback: bool = True,
+        public_delay_seconds: float = PUBLIC_REQUEST_DELAY_SECONDS,
     ):
         self.client_id = client_id if client_id is not None else config("REDDIT_CLIENT_ID", default="")
         self.client_secret = (
@@ -42,11 +53,16 @@ class RedditFetcher(BaseFetcher):
         self.user_agent = user_agent if user_agent is not None else config("REDDIT_USER_AGENT", default="")
         self.limit = min(max(limit, 1), 100)
         self.max_pages = max(max_pages, 1)
+        self.allow_public_fallback = allow_public_fallback
+        self.public_delay_seconds = max(public_delay_seconds, 0)
         self._access_token: str | None = None
 
     def fetch(self, symbol: str) -> list[dict]:
         token = self._get_access_token()
         if not token:
+            if self.allow_public_fallback and self.user_agent:
+                logger.warning("Reddit OAuth unavailable for %s; using public JSON fallback", symbol)
+                return self._fetch_public_json(symbol)
             logger.warning("Reddit fetch skipped for %s: missing or invalid OAuth credentials", symbol)
             return []
 
@@ -86,6 +102,39 @@ class RedditFetcher(BaseFetcher):
 
         return posts
 
+    def _fetch_public_json(self, symbol: str) -> list[dict]:
+        posts = []
+        headers = {"User-Agent": self.user_agent}
+        # Public JSON is deliberately conservative: one page across fewer subreddits.
+        for index, subreddit in enumerate(PUBLIC_SUBREDDITS):
+            if index > 0 and self.public_delay_seconds:
+                time.sleep(self.public_delay_seconds)
+
+            data = self.request_json(
+                "GET",
+                PUBLIC_SEARCH_URL.format(subreddit=subreddit),
+                retries=0,
+                headers=headers,
+                params={
+                    "q": symbol,
+                    "restrict_sr": "true",
+                    "sort": "new",
+                    "limit": min(self.limit, 25),
+                    "raw_json": 1,
+                },
+            )
+            if not data:
+                continue
+
+            listing = data.get("data", {})
+            children = listing.get("children", [])
+            for child in children:
+                parsed = self._parse_listing_child(child, fetch_mode="public_json")
+                if parsed:
+                    posts.append(parsed)
+
+        return posts
+
     def _get_access_token(self) -> str | None:
         if self._access_token:
             return self._access_token
@@ -113,7 +162,7 @@ class RedditFetcher(BaseFetcher):
         self._access_token = token
         return token
 
-    def _parse_listing_child(self, child: dict) -> dict | None:
+    def _parse_listing_child(self, child: dict, *, fetch_mode: str = "oauth") -> dict | None:
         data = child.get("data") if isinstance(child, dict) else None
         if not isinstance(data, dict):
             return None
@@ -138,6 +187,7 @@ class RedditFetcher(BaseFetcher):
                 "score": data.get("score"),
                 "comments_count": data.get("num_comments"),
                 "subreddit": data.get("subreddit"),
+                "fetch_mode": fetch_mode,
             },
         }
 

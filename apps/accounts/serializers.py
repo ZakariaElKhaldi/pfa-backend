@@ -1,13 +1,36 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer as BaseRegisterSerializer
+from dj_rest_auth.serializers import PasswordResetSerializer as BasePasswordResetSerializer
+from allauth.account.utils import user_pk_to_url_str
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import APIKey, CustomUser, UserPreference
 
 
+def frontend_password_reset_url(request, user, token):
+    base_url = settings.FRONTEND_URL.rstrip("/")
+    uid = user_pk_to_url_str(user)
+    return f"{base_url}/password/reset/confirm?uid={uid}&token={token}"
+
+
+class PasswordResetSerializer(BasePasswordResetSerializer):
+    def get_email_options(self):
+        return {"url_generator": frontend_password_reset_url}
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ["id", "email", "username", "role", "is_active", "date_joined"]
+        fields = [
+            "id",
+            "email",
+            "username",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+            "date_joined",
+        ]
         read_only_fields = ["id", "is_active", "date_joined"]
 
 

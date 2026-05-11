@@ -35,6 +35,7 @@ class TestFetcherMocks:
 
         assert mock_request.call_count == 8
         assert len(posts) == 8
+        assert posts[0]["metadata"]["fetch_mode"] == "oauth"
         assert posts[0]["source"] == "reddit"
         assert posts[0]["title"] == "NVIDIA is mooning"
         assert "NVDA financial results" in posts[0]["content"]
