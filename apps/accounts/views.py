@@ -9,7 +9,7 @@ from django.conf import settings
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.authentication import BasicAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -52,7 +52,19 @@ class GoogleOAuthRedirectView(APIView):
 
     def get(self, request):
         client_id = settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]["client_id"]
+        client_secret = settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]["secret"]
         callback_url = f"{settings.FRONTEND_URL}/auth/callback/google"
+        if not client_id or not client_secret:
+            return Response(
+                {
+                    "detail": (
+                        "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and "
+                        "GOOGLE_CLIENT_SECRET, then add this exact Authorized redirect URI "
+                        f"in Google Cloud Console: {callback_url}"
+                    )
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         params = urlencode({
             "client_id": client_id,
             "redirect_uri": callback_url,

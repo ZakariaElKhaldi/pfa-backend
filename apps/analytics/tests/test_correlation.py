@@ -43,3 +43,14 @@ class TestCorrelationEndpoint:
         assert data["matrix"][0][0] == pytest.approx(1.0)
         assert data["matrix"][1][1] == pytest.approx(1.0)
         assert data["matrix"][0][1] > 0.9
+
+    def test_flat_series_returns_null_cell(self, analyst_client):
+        a = Ticker.objects.create(symbol="AAPL", name="A")
+        b = Ticker.objects.create(symbol="MSFT", name="M")
+        _seed_prices(a, [(3, 100), (2, 100), (1, 100)])
+        _seed_prices(b, [(3, 50), (2, 51), (1, 52)])
+
+        response = analyst_client.get(self.URL + "?symbols=AAPL,MSFT&window=30d&metric=price")
+
+        assert response.status_code == 200
+        assert response.json()["matrix"][0][1] is None

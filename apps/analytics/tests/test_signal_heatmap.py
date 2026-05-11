@@ -38,3 +38,6 @@ class TestSignalHeatmap:
         assert "rows" in data
         assert data["rows"][0]["ticker"] == "AAPL"
         assert isinstance(data["rows"][0]["buckets"], list)
+        assert "bucket_start" in data["rows"][0]["buckets"][0]
+        assert "signal_avg" in data["rows"][0]["buckets"][0]
+        assert "count" in data["rows"][0]["buckets"][0]

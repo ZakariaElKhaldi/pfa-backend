@@ -61,3 +61,37 @@ class TestTradingFlow:
         auth_client.post("/api/portfolio/buy/", {"symbol": "AAPL", "quantity": 5})
         resp = auth_client.post("/api/portfolio/sell/", {"symbol": "AAPL", "quantity": 10})
         assert resp.status_code == 400
+
+    def test_buy_limit_below_latest_price_does_not_execute(self, auth_client, setup, user):
+        resp = auth_client.post(
+            "/api/portfolio/buy/",
+            {"symbol": "AAPL", "quantity": 10, "order_type": "limit", "limit_price": "149.99"},
+        )
+
+        assert resp.status_code == 400
+        assert "Limit not marketable" in resp.data["detail"]
+        assert Portfolio.objects.get(user=user).cash == Decimal("100000.00")
+        assert not Trade.objects.filter(ticker=setup).exists()
+
+    def test_buy_limit_at_latest_price_executes(self, auth_client, setup, user):
+        resp = auth_client.post(
+            "/api/portfolio/buy/",
+            {"symbol": "AAPL", "quantity": 10, "order_type": "limit", "limit_price": "150.00"},
+        )
+
+        assert resp.status_code == 200
+        assert Portfolio.objects.get(user=user).cash == Decimal("98500.00")
+
+    def test_sell_limit_above_latest_price_does_not_execute(self, auth_client, setup, user):
+        auth_client.post("/api/portfolio/buy/", {"symbol": "AAPL", "quantity": 10})
+
+        resp = auth_client.post(
+            "/api/portfolio/sell/",
+            {"symbol": "AAPL", "quantity": 5, "order_type": "limit", "limit_price": "150.01"},
+        )
+
+        assert resp.status_code == 400
+        assert "Limit not marketable" in resp.data["detail"]
+        portfolio = Portfolio.objects.get(user=user)
+        assert portfolio.cash == Decimal("98500.00")
+        assert Position.objects.get(portfolio=portfolio, ticker=setup).quantity == 10

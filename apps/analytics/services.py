@@ -94,18 +94,18 @@ def compute_sentiment_leaderboard(window: timedelta, limit: int) -> list[dict]:
     return rows[:limit]
 
 
-def _pearson(x: list[float], y: list[float]) -> float:
+def _pearson(x: list[float], y: list[float]) -> float | None:
     if len(x) < 2 or len(y) < 2 or len(x) != len(y):
-        return 0.0
+        return None
     if statistics.pstdev(x) == 0 or statistics.pstdev(y) == 0:
-        return 0.0
+        return None
     n = len(x)
     mx, my = statistics.mean(x), statistics.mean(y)
     num = sum((x[i] - mx) * (y[i] - my) for i in range(n))
     den_x = sum((xi - mx) ** 2 for xi in x) ** 0.5
     den_y = sum((yi - my) ** 2 for yi in y) ** 0.5
     if den_x == 0 or den_y == 0:
-        return 0.0
+        return None
     return round(num / (den_x * den_y), 6)
 
 
@@ -144,10 +144,15 @@ def compute_correlation_matrix(symbols: list[str], window: timedelta, metric: st
     aligned = {sym: vals[-min_len:] for sym, vals in series_per_symbol.items()}
 
     syms = list(aligned.keys())
-    matrix = [
-        [_pearson(aligned[a], aligned[b]) for b in syms]
-        for a in syms
-    ]
+    matrix = []
+    for a in syms:
+        row = []
+        for b in syms:
+            if a == b and len(aligned[a]) >= 2 and statistics.pstdev(aligned[a]) > 0:
+                row.append(1.0)
+            else:
+                row.append(_pearson(aligned[a], aligned[b]))
+        matrix.append(row)
     return {"symbols": syms, "matrix": matrix}
 
 
@@ -183,8 +188,12 @@ def compute_sector_rollup(window: timedelta) -> list[dict]:
     return rows
 
 
+def _day_bucket(dt):
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def compute_signal_heatmap(symbols: list[str], window: timedelta) -> dict:
-    """For each ticker, list (signal_index, price_change_pct) bucketed by snapshot."""
+    """For each ticker, list daily average signal and cumulative price change."""
     if not symbols:
         raise ValueError("symbols query param required")
 
@@ -213,17 +222,29 @@ def compute_signal_heatmap(symbols: list[str], window: timedelta) -> dict:
             rows.append({"ticker": ticker.symbol, "buckets": []})
             continue
         first_price = float(prices[0].price)
-        buckets = []
-        price_iter = iter(prices)
-        next_price = next(price_iter, None)
+        grouped: dict = {}
         for snap in signals:
-            while next_price and next_price.timestamp < snap.created_at:
-                next_price = next(price_iter, None)
-            ref_price = float(next_price.price) if next_price else float(prices[-1].price)
+            key = _day_bucket(snap.created_at)
+            grouped.setdefault(key, []).append(float(snap.normalized_index))
+
+        buckets = []
+        for bucket_start, signal_values in sorted(grouped.items()):
+            bucket_end = bucket_start + timedelta(days=1)
+            bucket_prices = [p for p in prices if bucket_start <= p.timestamp < bucket_end]
+            if bucket_prices:
+                ref_price = float(bucket_prices[-1].price)
+            else:
+                before = [p for p in prices if p.timestamp <= bucket_start]
+                ref_price = float((before[-1] if before else prices[-1]).price)
+            signal_avg = sum(signal_values) / len(signal_values) if signal_values else None
+            price_change = round((ref_price - first_price) / first_price, 6) if first_price else None
             buckets.append({
-                "ts": snap.created_at.isoformat(),
-                "signal": snap.normalized_index,
-                "price_change": round((ref_price - first_price) / first_price, 6) if first_price else 0.0,
+                "ts": bucket_start.isoformat(),
+                "bucket_start": bucket_start.isoformat(),
+                "signal": round(signal_avg, 6) if signal_avg is not None else None,
+                "signal_avg": round(signal_avg, 6) if signal_avg is not None else None,
+                "price_change": price_change,
+                "count": len(signal_values),
             })
         rows.append({"ticker": ticker.symbol, "buckets": buckets})
     return {"rows": rows}

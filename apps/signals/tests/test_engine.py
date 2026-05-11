@@ -32,19 +32,21 @@ def make_posts(ticker, count, score):
         )
 
 
-def make_prices(ticker, start_price, end_price):
+def make_prices(ticker, start_price, end_price, source=PriceSnapshot.SOURCE_ALPACA_STREAM):
     now = timezone.now()
     PriceSnapshot.objects.create(
         ticker=ticker,
         price=Decimal(str(start_price)),
         volume=0,
         timestamp=now - timedelta(minutes=25),
+        source=source,
     )
     PriceSnapshot.objects.create(
         ticker=ticker,
         price=Decimal(str(end_price)),
         volume=0,
         timestamp=now,
+        source=source,
     )
 
 
@@ -74,6 +76,48 @@ def test_hold_signal_when_inconsistent(ticker):
     make_prices(ticker, start_price=100, end_price=93)  # price going down while sentiment up
     result = compute_signal("AAPL")
     assert result is not None
+    assert result["signal"] == SignalSnapshot.SIGNAL_HOLD
+
+
+@pytest.mark.django_db
+def test_compute_signal_uses_seed_prices_when_live_prices_missing(ticker):
+    make_posts(ticker, count=10, score=0.7)
+    make_prices(
+        ticker,
+        start_price=100,
+        end_price=107,
+        source=PriceSnapshot.SOURCE_SEED,
+    )
+    result = compute_signal("AAPL")
+    assert result is not None
+    assert result["momentum"] == pytest.approx(0.7)
+    assert result["_decision_data"]["input_summary"]["price_sources"] == [
+        PriceSnapshot.SOURCE_SEED
+    ]
+    assert result["signal"] == SignalSnapshot.SIGNAL_BUY
+
+
+@pytest.mark.django_db
+def test_compute_signal_prefers_live_prices_over_seed_prices(ticker):
+    make_posts(ticker, count=10, score=0.7)
+    make_prices(
+        ticker,
+        start_price=100,
+        end_price=107,
+        source=PriceSnapshot.SOURCE_SEED,
+    )
+    make_prices(
+        ticker,
+        start_price=100,
+        end_price=93,
+        source=PriceSnapshot.SOURCE_ALPACA_STREAM,
+    )
+    result = compute_signal("AAPL")
+    assert result is not None
+    assert result["momentum"] == pytest.approx(-0.7)
+    assert result["_decision_data"]["input_summary"]["price_sources"] == list(
+        PriceSnapshot.LIVE_SOURCES
+    )
     assert result["signal"] == SignalSnapshot.SIGNAL_HOLD
 
 

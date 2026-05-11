@@ -47,12 +47,30 @@ def test_alert_defaults_to_unresolved(ticker):
     assert alert.resolved is False
 
 
+@pytest.mark.django_db
+def test_alert_endpoint_can_return_resolved_and_active(analyst_client, ticker):
+    active = AlertFlag.objects.create(
+        ticker=ticker, type=AlertFlag.TYPE_DIVERGENCE,
+        sentiment=0.2, momentum=-0.4, consistency=0.1,
+    )
+    resolved = AlertFlag.objects.create(
+        ticker=ticker, type=AlertFlag.TYPE_EXTREME,
+        sentiment=0.9, momentum=0.8, consistency=0.2, resolved=True,
+    )
+
+    response = analyst_client.get("/api/alerts/?resolved=all")
+
+    assert response.status_code == 200
+    ids = {row["id"] for row in response.data}
+    assert ids == {active.id, resolved.id}
+
+
 # --- Fade-the-hype alert (Long 2024) ---
 
 
 @pytest.mark.django_db
 def test_hype_fade_alert_when_dampener_fires(ticker):
-    """hype_dampened=True flag → creates TYPE_HYPE_FADE alert regardless of consistency."""
+    """hype_dampened=True creates TYPE_HYPE_FADE when enough posts support it."""
     data = {
         "sentiment": 0.35,
         "momentum": 0.7,
@@ -64,6 +82,30 @@ def test_hype_fade_alert_when_dampener_fires(ticker):
     check_and_create_alert(ticker, data)
     alert = AlertFlag.objects.get(ticker=ticker)
     assert alert.type == AlertFlag.TYPE_HYPE_FADE
+
+
+@pytest.mark.django_db
+def test_no_hype_fade_alert_when_post_count_below_threshold(ticker):
+    data = {
+        "sentiment": 0.35,
+        "momentum": 0.7,
+        "consistency": 0.8,
+        "post_count": 3,
+        "hype_dampened": True,
+        "mention_rate_z": 3.5,
+    }
+    check_and_create_alert(ticker, data)
+    assert AlertFlag.objects.filter(ticker=ticker, type=AlertFlag.TYPE_HYPE_FADE).count() == 0
+
+
+@pytest.mark.django_db
+def test_alert_cooldown_suppresses_repeated_alerts(ticker):
+    data = {"sentiment": 0.4, "momentum": -0.4, "consistency": 0.2, "post_count": 10}
+    first = check_and_create_alert(ticker, data)
+    second = check_and_create_alert(ticker, data)
+    assert first is not None
+    assert second is None
+    assert AlertFlag.objects.filter(ticker=ticker, type=AlertFlag.TYPE_DIVERGENCE).count() == 1
 
 
 @pytest.mark.django_db

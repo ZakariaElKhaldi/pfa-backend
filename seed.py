@@ -86,6 +86,12 @@ print(f"[tickers] {len(tickers)} tickers ready")
 # 2. WATCHLIST  (admin user watches 12 tickers)
 # ═══════════════════════════════════════════════════════════════════════════
 admin = CustomUser.objects.filter(is_superuser=True).first()
+if admin is None:
+    raise SystemExit(
+        "No superuser found. Create one with "
+        "`python manage.py createsuperuser` then rerun `python seed.py`."
+    )
+
 watch_symbols = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "META",
                  "GOOGL", "AMD", "JPM", "GME", "AMC", "GOOGL"]
 for sym in watch_symbols:

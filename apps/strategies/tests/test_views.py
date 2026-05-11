@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import CustomUser
-from apps.strategies.models import StrategyRule
+from apps.strategies.models import RuleAction, RuleCondition, StrategyRule
 
 
 @pytest.fixture
@@ -88,6 +88,52 @@ class TestStrategyCRUD:
         }, format="json")
         assert resp.status_code == 201
         assert ticker.id in resp.data["tickers"]
+        rule = StrategyRule.objects.get(id=resp.data["id"])
+        assert list(rule.tickers.values_list("id", flat=True)) == [ticker.id]
+
+    def test_patch_rule_updates_tickers(self, auth_client, user, ticker):
+        from apps.tickers.models import Ticker
+
+        other_ticker = Ticker.objects.create(symbol="MSFT", name="Microsoft Corp.")
+        rule = StrategyRule.objects.create(user=user, name="Rule with changed tickers")
+        rule.tickers.set([ticker])
+
+        resp = auth_client.patch(
+            f"/api/strategies/{rule.id}/",
+            {"tickers": [other_ticker.id]},
+            format="json",
+        )
+
+        assert resp.status_code == 200
+        assert resp.data["tickers"] == [other_ticker.id]
+        rule.refresh_from_db()
+        assert list(rule.tickers.values_list("id", flat=True)) == [other_ticker.id]
+
+    def test_patch_conditions_and_actions_preserves_order(self, auth_client, user):
+        rule = StrategyRule.objects.create(user=user, name="Rule with ordered children")
+        RuleCondition.objects.create(rule=rule, field="rsi", operator="lt", value="30", order=0)
+        RuleAction.objects.create(rule=rule, action_type="notify", config={}, order=0)
+
+        resp = auth_client.patch(
+            f"/api/strategies/{rule.id}/",
+            {
+                "conditions": [
+                    {"field": "sentiment_score", "operator": "gt", "value": "0.7", "logical_op": "AND", "order": 1},
+                    {"field": "price", "operator": "lt", "value": "100", "logical_op": "AND", "order": 0},
+                ],
+                "actions": [
+                    {"action_type": "email", "config": {"target": "desk@example.com"}, "order": 1},
+                    {"action_type": "log", "config": {}, "order": 0},
+                ],
+            },
+            format="json",
+        )
+
+        assert resp.status_code == 200
+        assert [condition["order"] for condition in resp.data["conditions"]] == [0, 1]
+        assert [condition["field"] for condition in resp.data["conditions"]] == ["price", "sentiment_score"]
+        assert [action["order"] for action in resp.data["actions"]] == [0, 1]
+        assert [action["action_type"] for action in resp.data["actions"]] == ["log", "email"]
 
     def test_patch_name_preserves_conditions(self, auth_client, user):
         # Create rule with one condition

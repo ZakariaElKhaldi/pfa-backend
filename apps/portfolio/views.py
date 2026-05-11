@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from rest_framework import generics, status
@@ -26,6 +26,35 @@ def get_latest_price(ticker: Ticker) -> Decimal:
     if snap is None:
         raise ValueError(f"No price available for {ticker.symbol}")
     return snap.price
+
+
+def parse_order(request):
+    order_type = request.data.get("order_type", "market")
+    if order_type not in {"market", "limit"}:
+        return None, None, Response(
+            {"detail": "order_type must be market or limit"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    raw_limit = request.data.get("limit_price", request.data.get("price"))
+    if order_type == "market":
+        return order_type, None, None
+
+    try:
+        limit_price = Decimal(str(raw_limit))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, None, Response(
+            {"detail": "limit_price must be a valid decimal"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if limit_price <= 0:
+        return None, None, Response(
+            {"detail": "limit_price must be positive"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return order_type, limit_price, None
 
 
 class PortfolioView(APIView):
@@ -65,6 +94,15 @@ class BuyView(APIView):
             price = get_latest_price(ticker)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_type, limit_price, error = parse_order(request)
+        if error is not None:
+            return error
+        if order_type == "limit" and limit_price is not None and price > limit_price:
+            return Response(
+                {"detail": f"Limit not marketable: latest price is {price}, limit is {limit_price}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         total_cost = price * quantity
 
@@ -131,6 +169,15 @@ class SellView(APIView):
             price = get_latest_price(ticker)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_type, limit_price, error = parse_order(request)
+        if error is not None:
+            return error
+        if order_type == "limit" and limit_price is not None and price < limit_price:
+            return Response(
+                {"detail": f"Limit not marketable: latest price is {price}, limit is {limit_price}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             portfolio = Portfolio.objects.select_for_update().get_or_create(

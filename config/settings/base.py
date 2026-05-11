@@ -112,14 +112,14 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_WORKER_MAX_TASKS_PER_CHILD = config(
     "CELERY_WORKER_MAX_TASKS_PER_CHILD",
-    default=1,
+    default=50,
     cast=int,
 )
 
 CELERY_BEAT_SCHEDULE = {
-    "pipeline-run-every-2min": {
+    "pipeline-run-every-5min": {
         "task": "pipeline.run_pipeline",
-        "schedule": timedelta(minutes=2),
+        "schedule": timedelta(minutes=5),
     },
     "signals-evaluate-accuracy-hourly": {
         "task": "signals.evaluate_accuracy",

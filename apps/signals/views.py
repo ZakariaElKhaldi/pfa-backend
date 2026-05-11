@@ -10,6 +10,7 @@ from apps.accounts.permissions import (
     ScopedAPIKeyPermission,
     ScopedUserPermission,
 )
+from django.db.models import Q
 from apps.tickers.models import Watchlist
 
 from .models import AlertFlag, DecisionLog, SignalAccuracy, SignalSnapshot
@@ -22,6 +23,12 @@ from .serializers import (
 
 
 class SignalPagePagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class DecisionLogPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
@@ -119,7 +126,24 @@ class AlertListView(generics.ListAPIView):
     required_scopes = ["alerts.read"]
 
     def get_queryset(self):
-        return AlertFlag.objects.filter(resolved=False).order_by("-created_at")
+        qs = AlertFlag.objects.select_related("ticker").all()
+        resolved = self.request.query_params.get("resolved", "false")
+        if resolved == "true":
+            qs = qs.filter(resolved=True)
+        elif resolved in ("false", ""):
+            qs = qs.filter(resolved=False)
+        elif resolved != "all":
+            qs = qs.filter(resolved=False)
+
+        alert_type = self.request.query_params.get("type")
+        if alert_type:
+            qs = qs.filter(type=alert_type)
+
+        ticker = self.request.query_params.get("ticker")
+        if ticker:
+            qs = qs.filter(ticker__symbol__icontains=ticker)
+
+        return qs.order_by("-created_at")
 
 
 class AlertResolveView(APIView):
@@ -138,12 +162,25 @@ class AlertResolveView(APIView):
 class DecisionLogListView(generics.ListAPIView):
     serializer_class = DecisionLogSerializer
     permission_classes = [IsAuthenticated, IsAnalystOrAdmin]
+    pagination_class = DecisionLogPagination
 
     def get_queryset(self):
-        qs = DecisionLog.objects.all()
+        qs = DecisionLog.objects.select_related("ticker").all()
         symbol = self.request.query_params.get("ticker")
         if symbol:
             qs = qs.filter(ticker__symbol=symbol.upper())
+        signal = self.request.query_params.get("signal")
+        if signal in ("BUY", "SELL", "HOLD"):
+            qs = qs.filter(engine_output__signal=signal)
+        method = self.request.query_params.get("method")
+        if method:
+            qs = qs.filter(Q(engine_output__method=method) | Q(scoring_detail__method=method))
+        date_from = self.request.query_params.get("from")
+        if date_from:
+            qs = qs.filter(timestamp__date__gte=date_from)
+        date_to = self.request.query_params.get("to")
+        if date_to:
+            qs = qs.filter(timestamp__date__lte=date_to)
         return qs
 
 

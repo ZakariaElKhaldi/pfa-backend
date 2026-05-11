@@ -115,8 +115,18 @@ docker-compose up -d db redis
 cd backend
 uv sync
 uv run python manage.py migrate
+uv run python manage.py createsuperuser
+python seed.py
 DJANGO_SETTINGS_MODULE=config.settings.local uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
+
+### Seeding Prerequisites
+- `DJANGO_SETTINGS_MODULE` must target a valid settings module for your environment.
+- Database services must be up and migrations applied.
+- Full seed requires at least one superuser.
+
+If no superuser exists, `seed.py` exits with:
+`No superuser found. Create one with python manage.py createsuperuser then rerun python seed.py.`
 
 ### Hybrid Realtime Runbook (Option 2)
 Run these 4 processes in local/dev:
@@ -166,6 +176,18 @@ DJANGO_SETTINGS_MODULE=config.settings.local uv run python manage.py check_price
 - `/ws/market/<SYMBOL>/` does not connect: backend is likely running via WSGI (`runserver`) instead of ASGI (`daphne`), or ASGI startup failed.
 - Forecast endpoints return `503` with `TIMESFM_UNAVAILABLE`: model dependency/runtime is not available in the environment.
 - Repeated `401` on `/api/auth/user` and `/api/auth/token/refresh`: stale token state in local storage; clear auth tokens and re-login.
+- Google OAuth `Error 400: redirect_uri_mismatch`: verify all 3 values match exactly:
+  - backend `.env` `FRONTEND_URL` (local default: `http://localhost:5174`)
+  - frontend callback route and running port (`/auth/callback/google` on the same origin)
+  - Google Cloud Console OAuth client "Authorized redirect URIs" includes `http://localhost:5174/auth/callback/google`
+  If you change the frontend port, update both `FRONTEND_URL` and Google Console redirect URI together.
+
+Google OAuth local verification:
+```bash
+cd backend
+curl -I http://localhost:8000/api/auth/google/redirect/
+```
+The `Location` header should contain `redirect_uri=http%3A%2F%2Flocalhost%3A5174%2Fauth%2Fcallback%2Fgoogle`.
 
 ### Tests
 ```bash
@@ -183,7 +205,7 @@ DJANGO_SETTINGS_MODULE=config.settings.test uv run python manage.py makemigratio
 
 ## Environment Variables
 
-See `.env.example` at the project root. Key variables:
+See `backend/.env.example` for the committed backend template. Key variables:
 
 | Variable | Purpose |
 |---|---|
@@ -194,6 +216,10 @@ See `.env.example` at the project root. Key variables:
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
 | `ALPACA_API_KEY` / `ALPACA_API_SECRET` | Market data stream |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origins |
+
+Redis host selection by runtime:
+- Host-run backend (default local dev): use `localhost` (`REDIS_HOST=localhost`, `CELERY_BROKER_URL=redis://localhost:6379/0`, `CELERY_RESULT_BACKEND=redis://localhost:6379/0`, `REDIS_CACHE_URL=redis://localhost:6379/1`).
+- Docker-network backend: use service DNS `redis` (`REDIS_HOST=redis`, `CELERY_BROKER_URL=redis://redis:6379/0`, `CELERY_RESULT_BACKEND=redis://redis:6379/0`, `REDIS_CACHE_URL=redis://redis:6379/1`).
 
 ---
 

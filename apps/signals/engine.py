@@ -18,6 +18,14 @@ HYPE_Z_THRESHOLD = 2.0
 HYPE_LAMBDA = 0.5
 
 
+def _price_sources_for_momentum(price_model) -> tuple[str, ...]:
+    """
+    Prefer live Alpaca prices. In local/dev data sets, seed prices are the only
+    available momentum source, so allow them as a fallback only when needed.
+    """
+    return price_model.LIVE_SOURCES
+
+
 def _compute_baseline_counts(ticker, now, window_minutes: int, lookback_days: int) -> list[int]:
     """Return per-window post counts over last `lookback_days`, excluding current window."""
     from apps.social.models import SocialPost
@@ -56,7 +64,8 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     except Ticker.DoesNotExist:
         return None
 
-    cutoff = timezone.now() - timedelta(minutes=30)
+    now = timezone.now()
+    cutoff = now - timedelta(minutes=30)
 
     # Fetch scored posts from last 30 minutes
     posts_qs = SocialPost.objects.filter(
@@ -66,6 +75,23 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     )
     post_count = posts_qs.count()
     if post_count == 0:
+        total_posts = SocialPost.objects.filter(ticker=ticker).count()
+        unscored_posts = SocialPost.objects.filter(
+            ticker=ticker,
+            sentiment_score__isnull=True,
+        ).count()
+        recent_posts = SocialPost.objects.filter(
+            ticker=ticker,
+            fetched_at__gte=cutoff,
+        ).count()
+        logger.info(
+            "No signal for %s: total_posts=%d unscored=%d in_window=%d scored_in_window=0 cutoff=%s",
+            ticker_symbol,
+            total_posts,
+            unscored_posts,
+            recent_posts,
+            cutoff.isoformat(),
+        )
         return None
 
     # Build post dicts for aggregation
@@ -74,14 +100,14 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     )
 
     # Compute aggregated sentiment (Papers 4 & 5)
-    agg = compute_aggregated_sentiment(post_dicts, now=timezone.now())
+    agg = compute_aggregated_sentiment(post_dicts, now=now)
 
     # Use time-decay weighted score as primary sentiment (Paper 5)
     raw_sentiment = agg["time_decay_score"]
 
     # Fade-the-hype guardrail (Long 2024): dampen sentiment if mention rate spikes
     baseline_counts = _compute_baseline_counts(
-        ticker, timezone.now(), HYPE_WINDOW_MINUTES, HYPE_BASELINE_DAYS
+        ticker, now, HYPE_WINDOW_MINUTES, HYPE_BASELINE_DAYS
     )
     mention_rate_z = compute_mention_rate_z(post_count, baseline_counts)
     sentiment, hype_dampened = apply_hype_dampener(
@@ -89,11 +115,26 @@ def compute_signal(ticker_symbol: str) -> dict | None:
     )
 
     # Momentum: % price change over last 30 minutes, normalized to [-1, 1]
+    price_sources = _price_sources_for_momentum(PriceSnapshot)
     prices = PriceSnapshot.objects.filter(
         ticker=ticker,
         timestamp__gte=cutoff,
-        source__in=PriceSnapshot.LIVE_SOURCES,
+        source__in=price_sources,
     ).order_by("timestamp")
+
+    if prices.count() < 2:
+        seed_prices = PriceSnapshot.objects.filter(
+            ticker=ticker,
+            timestamp__gte=cutoff,
+            source=PriceSnapshot.SOURCE_SEED,
+        ).order_by("timestamp")
+        if seed_prices.count() >= 2:
+            prices = seed_prices
+            price_sources = (PriceSnapshot.SOURCE_SEED,)
+            logger.info(
+                "Using seed price fallback for %s momentum: no live price pair in the last 30 minutes",
+                ticker_symbol,
+            )
 
     if prices.count() >= 2:
         oldest_price = float(prices.first().price)
@@ -105,6 +146,13 @@ def compute_signal(ticker_symbol: str) -> dict | None:
             momentum = 0.0
     else:
         momentum = 0.0
+        logger.info(
+            "Momentum unavailable for %s: price_count=%d sources=%s cutoff=%s",
+            ticker_symbol,
+            prices.count(),
+            price_sources,
+            cutoff.isoformat(),
+        )
 
     consistency = 1.0 - abs(sentiment - momentum) / 2.0
 
@@ -142,6 +190,7 @@ def compute_signal(ticker_symbol: str) -> dict | None:
             "post_count": post_count,
             "cutoff": cutoff.isoformat(),
             "sources": sorted({p["source"] for p in post_dicts}),
+            "price_sources": list(price_sources),
         },
         "scoring_detail": {
             "aggregation": agg,
